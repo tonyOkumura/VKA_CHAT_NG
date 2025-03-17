@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:vka_chat_ng/app/constants.dart';
+import 'package:vka_chat_ng/app/routes/app_pages.dart';
 
 class RegisterController extends GetxController {
   final emailController = TextEditingController();
@@ -45,7 +46,7 @@ class RegisterController extends GetxController {
       print(data);
       if (response.statusCode == 201) {
         Get.snackbar('Success', data['message']);
-        Get.offAllNamed('/login');
+        Get.offAllNamed(Routes.LOGIN);
       } else {
         Get.snackbar('Error', data['message']);
       }

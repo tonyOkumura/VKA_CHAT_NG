@@ -1,10 +1,13 @@
 import 'dart:convert';
+import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
+import 'package:jwt_decode/jwt_decode.dart';
 import 'package:vka_chat_ng/app/constants.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:vka_chat_ng/app/routes/app_pages.dart';
+import 'package:vka_chat_ng/app/services/socket_service.dart';
 
 class LoginController extends GetxController {
   final emailController = TextEditingController();
@@ -47,8 +50,19 @@ class LoginController extends GetxController {
       print(data);
       if (response.statusCode == 200) {
         Get.snackbar('Success', data['message']);
-        Get.offAllNamed(Routes.CHATS);
+        log('Token: ${data['token']}');
         await _storage.write(key: 'token', value: data['token']);
+
+        // Decode the token and save the userId
+        Map<String, dynamic> payload = Jwt.parseJwt(data['token']);
+        String userId = payload['id'];
+        log('User ID: $userId');
+        await _storage.write(key: 'userId', value: userId);
+
+        if (!Get.isRegistered<SocketService>()) {
+          await Get.putAsync(() => SocketService().init());
+        }
+        Get.offAllNamed(Routes.CHATS);
       } else {
         Get.snackbar('Error', data['message']);
       }

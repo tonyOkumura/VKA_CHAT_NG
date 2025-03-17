@@ -68,6 +68,7 @@ class AppDrawer extends StatelessWidget {
             onTap: () {
               final _storage = FlutterSecureStorage();
               _storage.delete(key: 'token');
+              _storage.delete(key: 'userId');
               print("Logged out");
               Get.offAllNamed(Routes.LOGIN);
             },
@@ -129,6 +130,7 @@ class ChatList extends StatelessWidget {
                       ),
                       onTap: () {
                         controller.selectConversation(index);
+                        controller.fetchMessages();
                       },
                     );
                   },
@@ -240,7 +242,7 @@ class ChatInput extends StatelessWidget {
           IconButton(
             icon: Icon(Icons.send),
             onPressed: () {
-              controller.sendMessage();
+              // controller.sendMessage();
             },
           ),
         ],
