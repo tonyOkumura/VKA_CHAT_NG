@@ -9,6 +9,7 @@ abstract class Routes {
   static const CHATS = _Paths.CHATS;
   static const SPLASH = _Paths.SPLASH;
   static const SETTINGS = _Paths.SETTINGS;
+  static const CONTACTS = _Paths.CONTACTS;
 }
 
 abstract class _Paths {
@@ -19,4 +20,5 @@ abstract class _Paths {
   static const CHATS = '/chats';
   static const SPLASH = '/splash';
   static const SETTINGS = '/settings';
+  static const CONTACTS = '/contacts';
 }

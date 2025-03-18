@@ -2,6 +2,8 @@ import 'package:get/get.dart';
 
 import '../modules/chats/bindings/chats_binding.dart';
 import '../modules/chats/views/chats_view.dart';
+import '../modules/contacts/bindings/contacts_binding.dart';
+import '../modules/contacts/views/contacts_view.dart';
 import '../modules/home/bindings/home_binding.dart';
 import '../modules/home/views/home_view.dart';
 import '../modules/login/bindings/login_binding.dart';
@@ -50,6 +52,11 @@ class AppPages {
       name: _Paths.SETTINGS,
       page: () => const SettingsView(),
       binding: SettingsBinding(),
+    ),
+    GetPage(
+      name: _Paths.CONTACTS,
+      page: () => const ContactsView(),
+      binding: ContactsBinding(),
     ),
   ];
 }

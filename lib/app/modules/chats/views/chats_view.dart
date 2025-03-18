@@ -56,6 +56,13 @@ class AppDrawer extends StatelessWidget {
             },
           ),
           ListTile(
+            leading: Icon(Icons.contacts),
+            title: Text('Contacts'),
+            onTap: () {
+              Get.toNamed(Routes.CONTACTS);
+            },
+          ),
+          ListTile(
             leading: Icon(Icons.settings),
             title: Text('Settings'),
             onTap: () {
