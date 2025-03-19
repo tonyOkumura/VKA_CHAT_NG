@@ -4,19 +4,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
+import 'package:vka_chat_ng/app/constants.dart';
 import 'package:vka_chat_ng/app/data/conversation_model.dart';
 import 'package:vka_chat_ng/app/data/message_model.dart';
 import 'package:vka_chat_ng/app/services/socket_service.dart';
 
 class ChatsController extends GetxController {
   final _storage = FlutterSecureStorage();
-  final _baseUrl = 'http://127.0.0.1:6000';
+  final _baseUrl = AppConstants.baseUrl;
   final conversations = <Conversation>[].obs;
   final messages = <Message>[].obs;
   var selectedConversation = Rxn<Conversation>();
   final messageController = TextEditingController();
   final isLoading = false.obs;
+  final isLoadingMessages = false.obs;
   late SocketService _socketService;
+  late String userId;
 
   @override
   void onInit() {
@@ -24,6 +27,7 @@ class ChatsController extends GetxController {
     print('ChatsController initialized.');
     _socketService = Get.find<SocketService>();
     _socketService.socket.on('newMessage', _handleIncomingMessage);
+    _initializeUserId();
     fetchConversations();
   }
 
@@ -36,9 +40,14 @@ class ChatsController extends GetxController {
   @override
   void onClose() {
     messageController.dispose();
-    _socketService.socket.off('message', _handleIncomingMessage);
+    _socketService.socket.off('newMessage', _handleIncomingMessage);
     print('ChatsController disposed.');
     super.onClose();
+  }
+
+  Future<void> _initializeUserId() async {
+    userId = await _storage.read(key: 'userId') ?? '';
+    print('User ID: $userId');
   }
 
   void selectConversation(int index) {
@@ -46,6 +55,7 @@ class ChatsController extends GetxController {
     print(
       'Selected conversation: ${selectedConversation.value!.participantName}',
     );
+    _socketService.joinConversation(selectedConversation.value!.id);
     fetchMessages();
   }
 
@@ -69,7 +79,7 @@ class ChatsController extends GetxController {
   }
 
   void fetchMessages() async {
-    isLoading.value = true;
+    isLoadingMessages.value = true;
     messages.clear();
     print('Fetching messages...');
     String token = await _storage.read(key: 'token') ?? '';
@@ -85,18 +95,25 @@ class ChatsController extends GetxController {
     } else {
       print('Failed to fetch messages: ${response.body}');
     }
-    isLoading.value = false;
+    isLoadingMessages.value = false;
   }
 
   Future<void> sendMessage() async {
-    final userId = await _storage.read(key: 'userId');
     if (messageController.text.isNotEmpty &&
         selectedConversation.value != null) {
       print('Sending message: ${messageController.text}');
+      final newMessage = Message(
+        id: DateTime.now().toString(), // Generate a temporary ID
+        conversationId: selectedConversation.value!.id,
+        senderId: userId,
+        content: messageController.text,
+        createdAt: DateTime.now().toIso8601String(),
+      );
+
       _socketService.sendMessage(
         selectedConversation.value!.id,
         messageController.text,
-        userId!,
+        userId,
       );
       messageController.clear();
     } else {

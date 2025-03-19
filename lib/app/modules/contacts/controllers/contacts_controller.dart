@@ -43,4 +43,28 @@ class ContactsController extends GetxController {
     }
     isLoading.value = false;
   }
+
+  Future<String> chechkOrCreateConversation({required String contactId}) async {
+    isLoading.value = true;
+    print('Checking or creating conversation with $contactId...');
+    String token = await _storage.read(key: 'token') ?? '';
+    var response = await http.post(
+      Uri.parse(AppConstants.baseUrl + '/conversations/check-or-create'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'contactId': contactId}),
+    );
+    if (response.statusCode == 200) {
+      var data = jsonDecode(response.body);
+      print('Conversation checked or created successfully.');
+      isLoading.value = false;
+      return data['conversationId'];
+    } else {
+      throw Exception(
+        'Failed to check or create conversation: ${response.body}',
+      );
+    }
+  }
 }

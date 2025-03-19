@@ -137,7 +137,6 @@ class ChatList extends StatelessWidget {
                       ),
                       onTap: () {
                         controller.selectConversation(index);
-                        controller.fetchMessages();
                       },
                     );
                   },
@@ -152,18 +151,7 @@ class ChatDetail extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       child: Column(
-        children: [
-          ChatHeader(),
-          Expanded(
-            child: Center(
-              child: Text(
-                'Chat details will be displayed here.',
-                style: TextStyle(fontSize: 18, color: Colors.grey),
-              ),
-            ),
-          ),
-          ChatInput(),
-        ],
+        children: [ChatHeader(), Expanded(child: ChatMessages()), ChatInput()],
       ),
     );
   }
@@ -197,34 +185,44 @@ class ChatHeader extends StatelessWidget {
   }
 }
 
-//  class ChatMessages extends StatelessWidget {
-//   @override
-//   Widget build(BuildContext context) {
-//     final controller = Get.find<ChatsController>();
-//     return ListView.builder(
-//       itemCount: controller.selectedConversation.value!.messages.length,
-//       itemBuilder: (context, index) {
-//         final message = controller.selectedConversation.value!.messages[index];
-//         return ListTile(
-//           title: Align(
-//             alignment:
-//                 message.isSentByMe
-//                     ? Alignment.centerRight
-//                     : Alignment.centerLeft,
-//             child: Container(
-//               padding: EdgeInsets.all(10),
-//               decoration: BoxDecoration(
-//                 color: message.isSentByMe ? Colors.blue[800] : Colors.grey[800],
-//                 borderRadius: BorderRadius.circular(10),
-//               ),
-//               child: Text(message.text), // Replace with actual message
-//             ),
-//           ),
-//         );
-//       },
-//     );
-//   }
-// }
+class ChatMessages extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final controller = Get.find<ChatsController>();
+    return Obx(
+      () =>
+          controller.isLoadingMessages.value
+              ? Center(child: CircularProgressIndicator())
+              : ListView.builder(
+                itemCount: controller.messages.length,
+                itemBuilder: (context, index) {
+                  final message = controller.messages[index];
+                  return ListTile(
+                    title: Align(
+                      alignment:
+                          message.senderId == controller.userId
+                              ? Alignment.centerRight
+                              : Alignment.centerLeft,
+                      child: Container(
+                        padding: EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color:
+                              message.senderId == controller.userId
+                                  ? Colors.blue[800]
+                                  : Colors.grey[800],
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          message.content,
+                        ), // Replace with actual message
+                      ),
+                    ),
+                  );
+                },
+              ),
+    );
+  }
+}
 
 class ChatInput extends StatelessWidget {
   @override
@@ -249,7 +247,7 @@ class ChatInput extends StatelessWidget {
           IconButton(
             icon: Icon(Icons.send),
             onPressed: () {
-              // controller.sendMessage();
+              controller.sendMessage();
             },
           ),
         ],

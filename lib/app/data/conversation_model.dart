@@ -13,10 +13,12 @@ class Conversation {
 
   factory Conversation.fromJson(Map<String, dynamic> json) {
     return Conversation(
-      id: json['id'],
+      id: json['conversation_id'],
       participantName: json['participant_name'],
-      lastMessage: json['last_message'],
-      lastMessageTime: DateTime.parse(json['last_message_time']),
+      lastMessage: json['last_message'] ?? '',
+      lastMessageTime: DateTime.parse(
+        json['last_message_time'] ?? DateTime.now().toString(),
+      ),
     );
   }
 }

@@ -47,7 +47,9 @@ class ContactsView extends GetView<ContactsController> {
                         title: Text(contact.username),
                         subtitle: Text(contact.email),
                         onTap: () {
-                          // Handle contact tap
+                          controller.chechkOrCreateConversation(
+                            contactId: contact.id,
+                          );
                         },
                       );
                     },

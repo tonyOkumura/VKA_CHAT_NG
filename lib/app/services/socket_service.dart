@@ -2,7 +2,6 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get/get.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 
-
 class SocketService extends GetxService {
   late IO.Socket _socket;
   final _storage = FlutterSecureStorage();
@@ -39,11 +38,15 @@ class SocketService extends GetxService {
   }
 
   void sendMessage(String conversationId, String content, String senderId) {
-    _socket.emit('message', {
+    _socket.emit('sendMessage', {
       'conversationId': conversationId,
       'content': content,
       'senderId': senderId,
     });
+  }
+
+  void joinConversation(String conversationId) {
+    _socket.emit('joinConversation', conversationId);
   }
 
   IO.Socket get socket => _socket;
