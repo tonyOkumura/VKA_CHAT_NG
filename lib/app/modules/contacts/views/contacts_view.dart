@@ -9,7 +9,18 @@ class ContactsView extends GetView<ContactsController> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Contacts'), centerTitle: true),
+      appBar: AppBar(
+        title: const Text('Contacts'),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: Icon(Icons.add),
+            onPressed: () {
+              _showAddContactDialog(context);
+            },
+          ),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Obx(
@@ -56,6 +67,37 @@ class ContactsView extends GetView<ContactsController> {
                   ),
         ),
       ),
+    );
+  }
+
+  void _showAddContactDialog(BuildContext context) {
+    final TextEditingController emailController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Add Contact'),
+          content: TextField(
+            controller: emailController,
+            decoration: InputDecoration(hintText: 'Enter email'),
+          ),
+          actions: [
+            TextButton(
+              child: Text('Cancel'),
+              onPressed: () {
+                Get.back();
+              },
+            ),
+            TextButton(
+              child: Text('Add'),
+              onPressed: () {
+                controller.addContact(contactEmail: emailController.text);
+                Get.back();
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 }

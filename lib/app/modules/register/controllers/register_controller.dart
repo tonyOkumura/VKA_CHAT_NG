@@ -45,8 +45,8 @@ class RegisterController extends GetxController {
       final data = json.decode(response.body);
       print(data);
       if (response.statusCode == 201) {
+        Get.back();
         Get.snackbar('Success', data['message']);
-        Get.offAllNamed(Routes.LOGIN);
       } else {
         Get.snackbar('Error', data['message']);
       }

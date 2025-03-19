@@ -20,6 +20,7 @@ class ChatsController extends GetxController {
   final isLoadingMessages = false.obs;
   late SocketService _socketService;
   late String userId;
+  final scrollController = ScrollController();
 
   @override
   void onInit() {
@@ -29,6 +30,12 @@ class ChatsController extends GetxController {
     _socketService.socket.on('newMessage', _handleIncomingMessage);
     _initializeUserId();
     fetchConversations();
+    scrollController.addListener(() {
+      if (scrollController.position.pixels ==
+          scrollController.position.minScrollExtent) {
+        print('Reached the top of the list.');
+      }
+    });
   }
 
   @override
@@ -40,6 +47,7 @@ class ChatsController extends GetxController {
   @override
   void onClose() {
     messageController.dispose();
+    scrollController.dispose();
     _socketService.socket.off('newMessage', _handleIncomingMessage);
     print('ChatsController disposed.');
     super.onClose();
@@ -61,7 +69,6 @@ class ChatsController extends GetxController {
 
   Future<void> fetchConversations() async {
     isLoading.value = true;
-    await Future.delayed(Duration(seconds: 5));
     print('Fetching conversations...');
     String token = await _storage.read(key: 'token') ?? '';
     var response = await http.get(
@@ -96,19 +103,13 @@ class ChatsController extends GetxController {
       print('Failed to fetch messages: ${response.body}');
     }
     isLoadingMessages.value = false;
+    _scrollToBottom();
   }
 
   Future<void> sendMessage() async {
     if (messageController.text.isNotEmpty &&
         selectedConversation.value != null) {
       print('Sending message: ${messageController.text}');
-      final newMessage = Message(
-        id: DateTime.now().toString(), // Generate a temporary ID
-        conversationId: selectedConversation.value!.id,
-        senderId: userId,
-        content: messageController.text,
-        createdAt: DateTime.now().toIso8601String(),
-      );
 
       _socketService.sendMessage(
         selectedConversation.value!.id,
@@ -126,7 +127,33 @@ class ChatsController extends GetxController {
     final message = Message.fromJson(data);
     if (selectedConversation.value != null &&
         message.conversationId == selectedConversation.value!.id) {
-      messages.add(message);
+      messages.insert(0, message);
+      _scrollToBottom();
+    }
+    _updateConversationLastMessage(message);
+  }
+
+  void _updateConversationLastMessage(Message message) {
+    final index = conversations.indexWhere(
+      (c) => c.id == message.conversationId,
+    );
+    if (index != -1) {
+      final updatedConversation = conversations[index].copyWith(
+        lastMessage: message.content,
+        lastMessageTime: DateTime.parse(message.createdAt).toLocal(),
+      );
+      conversations[index] = updatedConversation;
+      conversations.refresh();
+    }
+  }
+
+  void _scrollToBottom() {
+    if (scrollController.hasClients) {
+      scrollController.animateTo(
+        scrollController.position.minScrollExtent,
+        duration: Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
     }
   }
 }

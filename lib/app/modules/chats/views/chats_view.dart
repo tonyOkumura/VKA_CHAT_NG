@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart';
+import 'package:vka_chat_ng/app/data/message_model.dart';
 import 'package:vka_chat_ng/app/routes/app_pages.dart';
 import 'package:shimmer/shimmer.dart';
 import '../controllers/chats_controller.dart';
@@ -130,9 +132,12 @@ class ChatList extends StatelessWidget {
                       ), // Replace with actual chat name
                       subtitle: Text(
                         conversation.lastMessage,
+                        overflow: TextOverflow.ellipsis,
                       ), // Replace with actual last message
                       trailing: Text(
-                        conversation.lastMessageTime.toString(),
+                        DateFormat(
+                          'MMMM d , HH:mm',
+                        ).format(conversation.lastMessageTime),
                         style: TextStyle(color: Colors.grey, fontSize: 12),
                       ),
                       onTap: () {
@@ -194,32 +199,94 @@ class ChatMessages extends StatelessWidget {
           controller.isLoadingMessages.value
               ? Center(child: CircularProgressIndicator())
               : ListView.builder(
+                controller: controller.scrollController,
+                reverse: true,
                 itemCount: controller.messages.length,
+                padding: const EdgeInsets.only(bottom: 70.0),
                 itemBuilder: (context, index) {
                   final message = controller.messages[index];
-                  return ListTile(
-                    title: Align(
-                      alignment:
-                          message.senderId == controller.userId
-                              ? Alignment.centerRight
-                              : Alignment.centerLeft,
-                      child: Container(
-                        padding: EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color:
-                              message.senderId == controller.userId
-                                  ? Colors.blue[800]
-                                  : Colors.grey[800],
-                          borderRadius: BorderRadius.circular(10),
+                  final isSender = message.senderId == controller.userId;
+
+                  final showDateHeader =
+                      index == controller.messages.length - 1 ||
+                      DateTime.parse(message.createdAt).day !=
+                          DateTime.parse(
+                            controller.messages[index + 1].createdAt,
+                          ).day;
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (showDateHeader)
+                        _buildDateHeader(
+                          DateTime.parse(message.createdAt).toLocal(),
                         ),
-                        child: Text(
-                          message.content,
-                        ), // Replace with actual message
-                      ),
-                    ),
+
+                      _buildMessageBubble(message, isSender),
+                    ],
                   );
                 },
               ),
+    );
+  }
+
+  Widget _buildDateHeader(DateTime date) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 30.0, horizontal: 16.0),
+      child: Text(
+        _formatDate(date),
+        style: TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+          fontFamily: 'Nunito',
+          color: Get.theme.colorScheme.secondary,
+        ),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    if (date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day) {
+      return "Сегодня";
+    } else if (date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day - 1) {
+      return "Вчера";
+    } else {
+      return "${date.day}.${date.month}.${date.year}";
+    }
+  }
+
+  Widget _buildMessageBubble(Message message, bool isSender) {
+    return ListTile(
+      title: Align(
+        alignment: isSender ? Alignment.centerRight : Alignment.centerLeft,
+        child: Container(
+          padding: EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: isSender ? Colors.blue[800] : Colors.grey[800],
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(
+            crossAxisAlignment:
+                isSender ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            children: [
+              Text(message.content), // Replace with actual message
+              SizedBox(height: 5),
+              Text(
+                DateFormat(
+                  'HH:mm',
+                ).format(DateTime.parse(message.createdAt).toLocal()),
+                style: TextStyle(color: Colors.grey, fontSize: 10),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

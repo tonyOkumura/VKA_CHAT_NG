@@ -4,10 +4,12 @@ import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:vka_chat_ng/app/data/contact_model.dart';
 import 'package:vka_chat_ng/app/constants.dart';
+import 'package:vka_chat_ng/app/modules/chats/controllers/chats_controller.dart';
 
 class ContactsController extends GetxController {
   final contacts = <Contact>[].obs;
   final isLoading = false.obs;
+
   final _storage = FlutterSecureStorage();
 
   @override
@@ -45,7 +47,6 @@ class ContactsController extends GetxController {
   }
 
   Future<String> chechkOrCreateConversation({required String contactId}) async {
-    isLoading.value = true;
     print('Checking or creating conversation with $contactId...');
     String token = await _storage.read(key: 'token') ?? '';
     var response = await http.post(
@@ -58,13 +59,36 @@ class ContactsController extends GetxController {
     );
     if (response.statusCode == 200) {
       var data = jsonDecode(response.body);
+      Get.find<ChatsController>().fetchConversations();
       print('Conversation checked or created successfully.');
-      isLoading.value = false;
+      Get.snackbar('Success', 'Conversation created successfully.');
+
       return data['conversationId'];
     } else {
       throw Exception(
         'Failed to check or create conversation: ${response.body}',
       );
+    }
+  }
+
+  Future<void> addContact({required String contactEmail}) async {
+    print('Adding contact by Email: $contactEmail...');
+    String token = await _storage.read(key: 'token') ?? '';
+    var response = await http.post(
+      Uri.parse(AppConstants.baseUrl + '/contacts'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'contactEmail': contactEmail}),
+    );
+    if (response.statusCode == 201) {
+      print('Contact added successfully.');
+      fetchContacts();
+      Get.snackbar('Success', 'Contact $contactEmail added successfully.');
+    } else {
+      print('Failed to add contact: ${response.body}');
+      Get.snackbar('Error', 'Failed to add $contactEmail contact.');
     }
   }
 }
