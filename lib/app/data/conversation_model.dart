@@ -1,34 +1,39 @@
 class Conversation {
   final String id;
-  final String participantName;
-  final String lastMessage;
-  final DateTime lastMessageTime;
+  final String name;
+  final bool is_group_chat;
+  final String adminId;
+  final DateTime createdAt;
 
   Conversation({
     required this.id,
-    required this.participantName,
-    required this.lastMessage,
-    required this.lastMessageTime,
+    required this.name,
+    required this.is_group_chat,
+    required this.adminId,
+    required this.createdAt,
   });
-
   factory Conversation.fromJson(Map<String, dynamic> json) {
     return Conversation(
       id: json['conversation_id'],
-      participantName: json['participant_name'],
-      lastMessage: json['last_message'] ?? '',
-      lastMessageTime:
-          DateTime.parse(
-            json['last_message_time'] ?? DateTime.now().toString(),
-          ).toLocal(),
+      name: json['name'],
+      is_group_chat: json['is_group_chat'],
+      adminId: json['admin_id'],
+      createdAt: DateTime.parse(json['created_at']),
     );
   }
-
-  Conversation copyWith({String? lastMessage, DateTime? lastMessageTime}) {
+  Conversation copyWith({
+    String? id,
+    String? name,
+    bool? is_group_chat,
+    String? adminId,
+    DateTime? createdAt,
+  }) {
     return Conversation(
-      id: this.id,
-      participantName: this.participantName,
-      lastMessage: lastMessage ?? this.lastMessage,
-      lastMessageTime: lastMessageTime ?? this.lastMessageTime,
+      id: id ?? this.id,
+      name: name ?? this.name,
+      is_group_chat: is_group_chat ?? this.is_group_chat,
+      adminId: adminId ?? this.adminId,
+      createdAt: createdAt ?? this.createdAt,
     );
   }
 }
