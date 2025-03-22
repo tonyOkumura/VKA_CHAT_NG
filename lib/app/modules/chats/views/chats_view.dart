@@ -124,20 +124,20 @@ class ChatList extends StatelessWidget {
                     return ListTile(
                       leading: CircleAvatar(
                         child: Text(
-                          conversation.participantName[0],
+                          conversation.conversation_name[0],
                         ), // Replace with actual avatar
                       ),
                       title: Text(
-                        conversation.participantName,
+                        conversation.conversation_name,
                       ), // Replace with actual chat name
                       subtitle: Text(
-                        conversation.lastMessage,
+                        conversation.last_message??"",
                         overflow: TextOverflow.ellipsis,
                       ), // Replace with actual last message
                       trailing: Text(
                         DateFormat(
                           'MMMM d , HH:mm',
-                        ).format(conversation.lastMessageTime),
+                        ).format(conversation.last_message_time??DateTime.now()),
                         style: TextStyle(color: Colors.grey, fontSize: 12),
                       ),
                       onTap: () {
@@ -173,7 +173,7 @@ class ChatHeader extends StatelessWidget {
         children: [
           CircleAvatar(
             child: Text(
-              controller.selectedConversation.value!.participantName[0],
+              controller.selectedConversation.value!.conversation_name[0],
             ), // Replace with actual avatar
           ),
           SizedBox(width: 16),
@@ -181,7 +181,7 @@ class ChatHeader extends StatelessWidget {
             controller
                 .selectedConversation
                 .value!
-                .participantName, // Replace with actual chat name
+                .conversation_name, // Replace with actual chat name
             style: TextStyle(color: Colors.white, fontSize: 20),
           ),
         ],
@@ -205,13 +205,13 @@ class ChatMessages extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 70.0),
                 itemBuilder: (context, index) {
                   final message = controller.messages[index];
-                  final isSender = message.senderId == controller.userId;
+                  final isSender = message.sender_id == controller.userId;
 
                   final showDateHeader =
                       index == controller.messages.length - 1 ||
-                      DateTime.parse(message.createdAt).day !=
+                      DateTime.parse(message.created_at).day !=
                           DateTime.parse(
-                            controller.messages[index + 1].createdAt,
+                            controller.messages[index + 1].created_at,
                           ).day;
 
                   return Column(
@@ -219,7 +219,7 @@ class ChatMessages extends StatelessWidget {
                     children: [
                       if (showDateHeader)
                         _buildDateHeader(
-                          DateTime.parse(message.createdAt).toLocal(),
+                          DateTime.parse(message.created_at).toLocal(),
                         ),
 
                       _buildMessageBubble(message, isSender),
@@ -280,7 +280,7 @@ class ChatMessages extends StatelessWidget {
               Text(
                 DateFormat(
                   'HH:mm',
-                ).format(DateTime.parse(message.createdAt).toLocal()),
+                ).format(DateTime.parse(message.created_at).toLocal()),
                 style: TextStyle(color: Colors.grey, fontSize: 10),
               ),
             ],

@@ -39,9 +39,9 @@ class SocketService extends GetxService {
 
   void sendMessage(String conversationId, String content, String senderId) {
     _socket.emit('sendMessage', {
-      'conversationId': conversationId,
+      'conversation_id': conversationId,
       'content': content,
-      'senderId': senderId,
+      'sender_id': senderId,
     });
   }
 

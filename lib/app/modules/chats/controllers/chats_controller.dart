@@ -61,7 +61,7 @@ class ChatsController extends GetxController {
   void selectConversation(int index) {
     selectedConversation.value = conversations[index];
     print(
-      'Selected conversation: ${selectedConversation.value!.participantName}',
+      'Selected conversation: ${selectedConversation.value!.conversation_name}',
     );
     _socketService.joinConversation(selectedConversation.value!.id);
     fetchMessages();
@@ -126,7 +126,7 @@ class ChatsController extends GetxController {
     print('New message received: $data');
     final message = Message.fromJson(data);
     if (selectedConversation.value != null &&
-        message.conversationId == selectedConversation.value!.id) {
+        message.conversation_id == selectedConversation.value!.id) {
       messages.insert(0, message);
       _scrollToBottom();
     }
@@ -135,12 +135,12 @@ class ChatsController extends GetxController {
 
   void _updateConversationLastMessage(Message message) {
     final index = conversations.indexWhere(
-      (c) => c.id == message.conversationId,
+      (c) => c.id == message.conversation_id,
     );
     if (index != -1) {
       final updatedConversation = conversations[index].copyWith(
         lastMessage: message.content,
-        lastMessageTime: DateTime.parse(message.createdAt).toLocal(),
+        lastMessageTime: DateTime.parse(message.created_at).toLocal(),
       );
       conversations[index] = updatedConversation;
       conversations.refresh();

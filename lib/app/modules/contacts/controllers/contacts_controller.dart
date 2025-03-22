@@ -55,7 +55,11 @@ class ContactsController extends GetxController {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
-      body: jsonEncode({'contactId': contactId}),
+      body: jsonEncode({
+        'contact_id': contactId,
+        "is_group_chat": false,
+        "name": "dialog$contactId",
+      }),
     );
     if (response.statusCode == 200) {
       var data = jsonDecode(response.body);
