@@ -16,7 +16,6 @@ class Conversation {
     this.last_message_time, // Убрали required
     this.unread_count, // Убрали required
   });
-
   factory Conversation.fromJson(Map<String, dynamic> json) {
     return Conversation(
       id: json['conversation_id'],
@@ -24,9 +23,10 @@ class Conversation {
       is_group_chat: json['is_group_chat'],
       admin_name: json['admin_name'],
       last_message: json['last_message'], // Будет null, если нет
-      last_message_time: json['last_message_time'] != null
-          ? DateTime.parse(json['last_message_time']).toLocal()
-          : null, // Проверяем наличие
+      last_message_time:
+          json['last_message_time'] != null
+              ? DateTime.parse(json['last_message_time']).toLocal()
+              : null, // Проверяем наличие
       unread_count: json['unread_count'], // Будет null, если нет
     );
   }

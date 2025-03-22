@@ -1,11 +1,22 @@
 class User {
-  final String name;
+  final String id;
+  final String username;
   final String email;
-  final String token;
+  final bool is_online;
+  final DateTime created_at;
+  final DateTime updated_at;
 
-  User({required this.name, required this.email, required this.token});
+  User({required this.id, required this.username, required this.email, required this.is_online, required this.created_at, required this.updated_at});
 
-  factory User.fromJson(Map<String, dynamic> json) {
-    return User(name: json['name'], email: json['email'], token: json['token']);
+factory User.fromJson(Map<String, dynamic> json) {
+    return User(
+      id: json['user_id'],
+      username: json['username'],
+      email: json['email'],
+      is_online: json['is_online'],
+      created_at: DateTime.parse(json['created_at']),
+      updated_at: DateTime.parse(json['updated_at']),
+    );
   }
+
 }

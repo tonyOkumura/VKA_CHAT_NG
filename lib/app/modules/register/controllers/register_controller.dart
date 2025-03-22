@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:vka_chat_ng/app/constants.dart';
-import 'package:vka_chat_ng/app/routes/app_pages.dart';
 
 class RegisterController extends GetxController {
   final emailController = TextEditingController();
