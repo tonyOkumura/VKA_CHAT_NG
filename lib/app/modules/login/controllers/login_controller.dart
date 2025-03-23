@@ -51,13 +51,13 @@ class LoginController extends GetxController {
       if (response.statusCode == 200) {
         Get.snackbar('Success', data['message']);
         log('Token: ${data['token']}');
-        await _storage.write(key: 'token', value: data['token']);
+        await _storage.write(key: AppKeys.token, value: data['token']);
 
         // Decode the token and save the userId
         Map<String, dynamic> payload = Jwt.parseJwt(data['token']);
         String userId = payload['id'];
         log('User ID: $userId');
-        await _storage.write(key: 'userId', value: userId);
+        await _storage.write(key: AppKeys.userId, value: userId);
 
         if (!Get.isRegistered<SocketService>()) {
           await Get.putAsync(() => SocketService().init());

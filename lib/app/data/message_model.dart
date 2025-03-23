@@ -33,6 +33,26 @@ class Message {
               : null, // Проверяем наличие поля
     );
   }
+
+  Message copyWith({
+    String? id,
+    String? conversation_id,
+    String? sender_id,
+    String? content,
+    String? created_at,
+    bool? is_unread,
+    List<ReadByUser>? read_by_users,
+  }) {
+    return Message(
+      id: id ?? this.id,
+      conversation_id: conversation_id ?? this.conversation_id,
+      sender_id: sender_id ?? this.sender_id,
+      content: content ?? this.content,
+      created_at: created_at ?? this.created_at,
+      is_unread: is_unread ?? this.is_unread,
+      read_by_users: read_by_users ?? this.read_by_users,
+    );
+  }
 }
 
 class ReadByUser {

@@ -1,18 +1,25 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get/get.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:vka_chat_ng/app/constants.dart';
 
 class SocketService extends GetxService {
   late IO.Socket _socket;
   final _storage = FlutterSecureStorage();
 
+  @override
+  void onInit() {
+    super.onInit();
+    _initSocket();
+  }
+
   Future<SocketService> init() async {
-    await initSocket();
+    await _initSocket();
     return this;
   }
 
-  Future<void> initSocket() async {
-    String token = await _storage.read(key: 'token') ?? '';
+  Future<void> _initSocket() async {
+    String token = await _storage.read(key: AppKeys.token) ?? '';
     _socket = IO.io(
       'http://localhost:6000',
       IO.OptionBuilder()
@@ -32,6 +39,11 @@ class SocketService extends GetxService {
 
     _socket.on('newMessage', (data) {
       print('New message: $data');
+    });
+
+    _socket.on('markMessagesAsRead', (data) {
+      print('Messages marked as read: $data');
+      // Здесь можно добавить дополнительную логику обработки
     });
 
     _socket.connect();

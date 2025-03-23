@@ -122,23 +122,57 @@ class ChatList extends StatelessWidget {
                   itemBuilder: (context, index) {
                     final conversation = controller.conversations[index];
                     return ListTile(
-                      leading: CircleAvatar(
-                        child: Text(
-                          conversation.conversation_name[0],
-                        ), // Replace with actual avatar
-                      ),
+                      leading:
+                          conversation.is_group_chat
+                              ? Container(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.rectangle,
+                                  borderRadius: BorderRadius.circular(10),
+                                  color: Get.theme.colorScheme.primaryContainer,
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(8.0),
+                                  child: Icon(Icons.group),
+                                ),
+                              )
+                              : CircleAvatar(
+                                child: Text(
+                                  conversation.conversation_name[0],
+                                ), // Replace with actual avatar
+                              ),
                       title: Text(
                         conversation.conversation_name,
                       ), // Replace with actual chat name
                       subtitle: Text(
-                        conversation.last_message??"",
+                        conversation.last_message ?? "",
                         overflow: TextOverflow.ellipsis,
                       ), // Replace with actual last message
-                      trailing: Text(
-                        DateFormat(
-                          'MMMM d , HH:mm',
-                        ).format(conversation.last_message_time??DateTime.now()),
-                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                      trailing: Column(
+                        children: [
+                          Text(
+                            DateFormat('MMMM d , HH:mm').format(
+                              conversation.last_message_time ?? DateTime.now(),
+                            ),
+                            style: TextStyle(color: Colors.grey, fontSize: 12),
+                          ),
+                          SizedBox(height: 5),
+                          conversation.unread_count != 0
+                              ? Container(
+                                width: 20,
+                                height: 20,
+                                decoration: BoxDecoration(
+                                  color: Get.theme.colorScheme.primaryContainer,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    conversation.unread_count.toString(),
+                                    style: TextStyle(color: Colors.white),
+                                  ),
+                                ),
+                              )
+                              : SizedBox(),
+                        ],
                       ),
                       onTap: () {
                         controller.selectConversation(index);
@@ -222,7 +256,7 @@ class ChatMessages extends StatelessWidget {
                           DateTime.parse(message.created_at).toLocal(),
                         ),
 
-                      _buildMessageBubble(message, isSender),
+                      _buildMessageBubble(context, message, isSender),
                     ],
                   );
                 },
@@ -261,33 +295,77 @@ class ChatMessages extends StatelessWidget {
     }
   }
 
-  Widget _buildMessageBubble(Message message, bool isSender) {
-    return ListTile(
-      title: Align(
-        alignment: isSender ? Alignment.centerRight : Alignment.centerLeft,
-        child: Container(
-          padding: EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: isSender ? Colors.blue[800] : Colors.grey[800],
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Column(
-            crossAxisAlignment:
-                isSender ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-            children: [
-              Text(message.content), // Replace with actual message
-              SizedBox(height: 5),
-              Text(
-                DateFormat(
-                  'HH:mm',
-                ).format(DateTime.parse(message.created_at).toLocal()),
-                style: TextStyle(color: Colors.grey, fontSize: 10),
-              ),
-            ],
+  Widget _buildMessageBubble(
+    BuildContext context,
+    Message message,
+    bool isSender,
+  ) {
+    return GestureDetector(
+      onTap: () {
+        final controller = Get.find<ChatsController>();
+        controller.showMessageReadsDialog(context, message.id);
+      },
+      child: ListTile(
+        title: Align(
+          alignment: isSender ? Alignment.centerRight : Alignment.centerLeft,
+          child: Container(
+            padding: EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color:
+                  isSender
+                      ? Get.theme.colorScheme.tertiaryContainer
+                      : Get.theme.colorScheme.secondaryContainer,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              crossAxisAlignment:
+                  isSender ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              children: [
+                Text(message.content),
+                SizedBox(height: 5),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    !isSender
+                        ? message.is_unread ?? false
+                            ? Icon(Icons.check, size: 16, color: Colors.green)
+                            : Icon(Icons.check, size: 16, color: Colors.grey)
+                        : SizedBox(),
+                    !isSender ? SizedBox(width: 5) : SizedBox(),
+                    Text(
+                      DateFormat(
+                        'HH:mm',
+                      ).format(DateTime.parse(message.created_at).toLocal()),
+                      style: TextStyle(color: Colors.grey, fontSize: 10),
+                    ),
+                    isSender ? SizedBox(width: 5) : SizedBox(),
+                    isSender ? _buildReadStatus(message) : SizedBox(),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
+  }
+
+  Widget _buildReadStatus(Message message) {
+    final readCount = message.read_by_users?.length ?? 0;
+
+    if (readCount == 0) {
+      return Icon(Icons.check, size: 16, color: Colors.grey);
+    } else if (readCount == 1) {
+      return Icon(Icons.check, size: 16, color: Colors.green);
+    } else {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.check, size: 16, color: Colors.green),
+          Icon(Icons.check, size: 16, color: Colors.green),
+        ],
+      );
+    }
   }
 }
 

@@ -10,11 +10,33 @@ class ContactsView extends GetView<ContactsController> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Contacts'),
+        title: Obx(
+          () => Text(
+            controller.isSelectionMode.value
+                ? 'Выберите участников'
+                : 'Контакты',
+          ),
+        ),
         centerTitle: true,
         actions: [
+          Obx(
+            () =>
+                controller.isSelectionMode.value
+                    ? IconButton(
+                      icon: const Icon(Icons.check),
+                      onPressed: () {
+                        _showGroupNameDialog(context);
+                      },
+                    )
+                    : IconButton(
+                      icon: const Icon(Icons.group_add),
+                      onPressed: () {
+                        controller.startSelectionMode();
+                      },
+                    ),
+          ),
           IconButton(
-            icon: Icon(Icons.add),
+            icon: const Icon(Icons.add),
             onPressed: () {
               _showAddContactDialog(context);
             },
@@ -57,10 +79,29 @@ class ContactsView extends GetView<ContactsController> {
                         leading: CircleAvatar(child: Text(contact.username[0])),
                         title: Text(contact.username),
                         subtitle: Text(contact.email),
+                        trailing: Obx(
+                          () =>
+                              controller.isSelectionMode.value
+                                  ? Checkbox(
+                                    value: controller.isContactSelected(
+                                      contact.id,
+                                    ),
+                                    onChanged: (bool? value) {
+                                      controller.toggleContactSelection(
+                                        contact.id,
+                                      );
+                                    },
+                                  )
+                                  : const SizedBox(),
+                        ),
                         onTap: () {
-                          controller.chechkOrCreateConversation(
-                            contactId: contact.id,
-                          );
+                          if (controller.isSelectionMode.value) {
+                            controller.toggleContactSelection(contact.id);
+                          } else {
+                            controller.chechkOrCreateConversation(
+                              contactId: contact.id,
+                            );
+                          }
                         },
                       );
                     },
@@ -76,23 +117,63 @@ class ContactsView extends GetView<ContactsController> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Add Contact'),
+          title: const Text('Добавить контакт'),
           content: TextField(
             controller: emailController,
-            decoration: InputDecoration(hintText: 'Enter email'),
+            decoration: const InputDecoration(hintText: 'Введите email'),
           ),
           actions: [
             TextButton(
-              child: Text('Cancel'),
+              child: const Text('Отмена'),
               onPressed: () {
                 Get.back();
               },
             ),
             TextButton(
-              child: Text('Add'),
+              child: const Text('Добавить'),
               onPressed: () {
-                controller.addContact(contactEmail: emailController.text);
+                if (emailController.text.isNotEmpty) {
+                  controller.addContact(contactEmail: emailController.text);
+                  Get.back();
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showGroupNameDialog(BuildContext context) {
+    final TextEditingController nameController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Название группы'),
+          content: TextField(
+            controller: nameController,
+            decoration: const InputDecoration(
+              hintText: 'Введите название группы',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              child: const Text('Отмена'),
+              onPressed: () {
                 Get.back();
+              },
+            ),
+            TextButton(
+              child: const Text('Создать'),
+              onPressed: () {
+                if (nameController.text.isNotEmpty) {
+                  Get.back();
+                  controller.confirmSelectionAndCreateGroup(
+                    groupName: nameController.text,
+                  );
+                }
               },
             ),
           ],
