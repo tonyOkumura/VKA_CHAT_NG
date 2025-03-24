@@ -2,6 +2,7 @@ class Message {
   final String id;
   final String conversation_id;
   final String sender_id;
+
   final String content;
   final String created_at;
   final bool? is_unread; // Сделали nullable
@@ -11,6 +12,7 @@ class Message {
     required this.id,
     required this.conversation_id,
     required this.sender_id,
+
     required this.content,
     required this.created_at,
     this.is_unread, // Убрали required
@@ -22,6 +24,7 @@ class Message {
       id: json['id'],
       conversation_id: json['conversation_id'],
       sender_id: json['sender_id'],
+
       content: json['content'],
       created_at: json['created_at'],
       is_unread: json['is_unread'], // Будет null, если поля нет
@@ -38,6 +41,7 @@ class Message {
     String? id,
     String? conversation_id,
     String? sender_id,
+
     String? content,
     String? created_at,
     bool? is_unread,
@@ -47,6 +51,7 @@ class Message {
       id: id ?? this.id,
       conversation_id: conversation_id ?? this.conversation_id,
       sender_id: sender_id ?? this.sender_id,
+
       content: content ?? this.content,
       created_at: created_at ?? this.created_at,
       is_unread: is_unread ?? this.is_unread,

@@ -4,10 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:vka_chat_ng/app/constants.dart';
 import 'package:vka_chat_ng/app/data/conversation_model.dart';
 import 'package:vka_chat_ng/app/data/message_model.dart';
-import 'package:vka_chat_ng/app/data/message_read_model.dart';
+import 'package:vka_chat_ng/app/data/message_reads_model.dart';
 import 'package:vka_chat_ng/app/services/socket_service.dart';
 
 class ChatsController extends GetxController {
@@ -15,7 +16,7 @@ class ChatsController extends GetxController {
   final _baseUrl = AppConstants.baseUrl;
   final conversations = <Conversation>[].obs;
   final messages = <Message>[].obs;
-  final messageReads = <String, List<MessageRead>>{}.obs;
+  final messageReads = <String, List<MessageReads>>{}.obs;
   final userColors = <String, Color>{}.obs; // Хранение цветов пользователей
   var selectedConversation = Rxn<Conversation>();
   final messageController = TextEditingController();
@@ -57,7 +58,12 @@ class ChatsController extends GetxController {
     _socketService.socket.on('newMessage', _handleIncomingMessage);
     _socketService.socket.on('messageRead', _handleMessageRead);
     _initializeUserId();
-    fetchConversations();
+    fetchConversations().then((_) {
+      // После получения списка чатов подключаемся ко всем
+      for (var conversation in conversations) {
+        _socketService.joinConversation(conversation.id);
+      }
+    });
     scrollController.addListener(() {
       if (scrollController.position.pixels ==
           scrollController.position.minScrollExtent) {
@@ -92,7 +98,6 @@ class ChatsController extends GetxController {
     print(
       'Selected conversation: ${selectedConversation.value!.conversation_name}',
     );
-    _socketService.joinConversation(selectedConversation.value!.id);
     fetchMessages();
   }
 
@@ -231,9 +236,22 @@ class ChatsController extends GetxController {
       final updatedConversation = conversations[index].copyWith(
         lastMessage: message.content,
         lastMessageTime: DateTime.parse(message.created_at).toLocal(),
+        // Увеличиваем счетчик непрочитанных только если это не текущий чат
+        unreadCount:
+            selectedConversation.value?.id == message.conversation_id
+                ? 0 // Если это текущий чат, сообщения считаются прочитанными
+                : (conversations[index].unread_count ?? 0) + 1,
       );
       conversations[index] = updatedConversation;
       conversations.refresh();
+
+      // Если это не текущий чат, обновляем его позицию в списке
+      if (selectedConversation.value?.id != message.conversation_id) {
+        // Удаляем чат из текущей позиции
+        final conversation = conversations.removeAt(index);
+        // Добавляем его в начало списка
+        conversations.insert(0, conversation);
+      }
     }
   }
 
@@ -301,11 +319,15 @@ class ChatsController extends GetxController {
     }
   }
 
-  List<MessageRead> getMessageReads(String messageId) {
+  List<MessageReads> getMessageReads(String messageId) {
     return messageReads[messageId] ?? [];
   }
 
-  void showMessageReadsDialog(BuildContext context, String messageId) {
+  void showMessageReadsDialog(
+    BuildContext context,
+    String messageId,
+    RenderBox messageBox,
+  ) {
     final message = messages.firstWhere((m) => m.id == messageId);
     // Фильтруем список прочитавших, исключая текущего пользователя
     final reads =
@@ -314,50 +336,99 @@ class ChatsController extends GetxController {
             .toList();
 
     if (reads.isEmpty) {
-      showDialog(
-        context: context,
-        builder:
-            (context) => AlertDialog(
-              title: Text('Статус сообщения'),
-              content: Text('Сообщение еще никто не прочитал'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text('Закрыть'),
-                ),
-              ],
-            ),
-      );
+      _showReadStatusPopup(context, messageBox, [], false);
       return;
     }
 
-    showDialog(
+    _showReadStatusPopup(context, messageBox, reads, true);
+  }
+
+  void _showReadStatusPopup(
+    BuildContext context,
+    RenderBox messageBox,
+    List<ReadByUser> reads,
+    bool hasReads,
+  ) {
+    final position = messageBox.localToGlobal(Offset.zero);
+    final size = messageBox.size;
+
+    showMenu(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: Text('Прочитано'),
-            content: Container(
-              width: double.maxFinite,
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: reads.length,
-                itemBuilder: (context, index) {
-                  final read = reads[index];
-                  return ListTile(
-                    leading: CircleAvatar(child: Text(read.username[0])),
-                    title: Text(read.username),
-                    subtitle: Text('Прочитано: ${read.read_at.split('.')[0]}'),
-                  );
-                },
-              ),
+      position: RelativeRect.fromLTRB(
+        position.dx,
+        position.dy - 100, // Показываем чуть выше сообщения
+        position.dx + size.width,
+        position.dy,
+      ),
+      items: [
+        PopupMenuItem(
+          enabled: false,
+          child: Container(
+            constraints: BoxConstraints(maxWidth: 200),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  hasReads ? 'Прочитано' : 'Не прочитано',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                SizedBox(height: 8),
+                if (hasReads)
+                  ...reads
+                      .map(
+                        (read) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4.0),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              CircleAvatar(
+                                radius: 12,
+                                backgroundColor: getUserColor(read.contact_id),
+                                child: Text(
+                                  read.username[0],
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      read.username,
+                                      style: TextStyle(fontSize: 14),
+                                    ),
+                                    Text(
+                                      DateFormat('HH:mm dd.MM.yyyy').format(
+                                        DateTime.parse(read.read_at).toLocal(),
+                                      ),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                      .toList()
+                else
+                  Text(
+                    'Сообщение еще никто не прочитал',
+                    style: TextStyle(color: Colors.grey, fontSize: 14),
+                  ),
+              ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('Закрыть'),
-              ),
-            ],
           ),
+        ),
+      ],
     );
   }
 }

@@ -100,6 +100,7 @@ class ContactsView extends GetView<ContactsController> {
                           } else {
                             controller.chechkOrCreateConversation(
                               contactId: contact.id,
+                              contactEmail: contact.email,
                             );
                           }
                         },

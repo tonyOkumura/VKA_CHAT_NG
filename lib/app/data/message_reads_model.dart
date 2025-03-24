@@ -13,8 +13,7 @@ class MessageReads {
     return MessageReads(
       message_id: json['message_id'],
       user_id: json['user_id'],
-      read_at: DateTime.parse(json['read_at']),
+      read_at: DateTime.parse(json['read_at']).toLocal(),
     );
   }
-  
 }

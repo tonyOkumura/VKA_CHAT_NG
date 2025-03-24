@@ -5,6 +5,8 @@ import 'package:http/http.dart' as http;
 import 'package:vka_chat_ng/app/data/contact_model.dart';
 import 'package:vka_chat_ng/app/constants.dart';
 import 'package:vka_chat_ng/app/modules/chats/controllers/chats_controller.dart';
+import 'package:vka_chat_ng/app/routes/app_pages.dart';
+import 'package:vka_chat_ng/app/services/socket_service.dart';
 
 class ContactsController extends GetxController {
   final _storage = FlutterSecureStorage();
@@ -80,7 +82,10 @@ class ContactsController extends GetxController {
       }
 
       final data = jsonDecode(createResponse.body);
-      final conversationId = data['id'];
+      final conversationId = data['conversation_id'];
+
+      final _socketService = Get.find<SocketService>();
+      _socketService.joinConversation(conversationId);
 
       // 2. Добавляем остальных участников
       for (String contactId in selectedContacts.skip(1)) {
@@ -111,8 +116,8 @@ class ContactsController extends GetxController {
 
       if (conversationIndex != -1) {
         chatsController.selectConversation(conversationIndex);
-        Get.toNamed('/chats');
       }
+      Get.snackbar('Успешно', 'Групповой чат создан');
     } catch (e) {
       print('Error creating group chat: $e');
       Get.snackbar(
@@ -168,14 +173,17 @@ class ContactsController extends GetxController {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
-      body: jsonEncode({'email': contactEmail}),
+      body: jsonEncode({'contact_email': contactEmail}),
     );
     if (response.statusCode == 200) {
       await fetchContacts();
     }
   }
 
-  Future<void> chechkOrCreateConversation({required String contactId}) async {
+  Future<void> chechkOrCreateConversation({
+    required String contactId,
+    required String contactEmail,
+  }) async {
     try {
       String token = await _storage.read(key: AppKeys.token) ?? '';
       var response = await http.post(
@@ -193,16 +201,20 @@ class ContactsController extends GetxController {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        final _socketService = Get.find<SocketService>();
+        _socketService.joinConversation(data['conversation_id']);
+        print(data);
         final chatsController = Get.find<ChatsController>();
         await chatsController.fetchConversations();
 
         final conversationIndex = chatsController.conversations.indexWhere(
-          (c) => c.id == data['id'],
+          (c) => c.id == data['conversation_id'],
         );
 
         if (conversationIndex != -1) {
           chatsController.selectConversation(conversationIndex);
         }
+        Get.snackbar('Успешно', 'Чат создан');
       } else {
         Get.snackbar(
           'Ошибка',

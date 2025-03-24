@@ -302,11 +302,16 @@ class ChatMessages extends StatelessWidget {
   ) {
     return GestureDetector(
       onTap: () {
-        final controller = Get.find<ChatsController>();
-        controller.showMessageReadsDialog(context, message.id);
+        final RenderBox? messageBox =
+            context.findAncestorRenderObjectOfType<RenderBox>();
+        if (messageBox != null) {
+          final controller = Get.find<ChatsController>();
+          controller.showMessageReadsDialog(context, message.id, messageBox);
+        }
       },
-      child: ListTile(
-        title: Align(
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        child: Align(
           alignment: isSender ? Alignment.centerRight : Alignment.centerLeft,
           child: Container(
             padding: EdgeInsets.all(10),
