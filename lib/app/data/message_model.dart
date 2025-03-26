@@ -5,6 +5,7 @@ class Message {
 
   final String content;
   final String created_at;
+  final String sender_username;
   final bool? is_unread; // Сделали nullable
   final List<ReadByUser>? read_by_users; // Сделали nullable
 
@@ -12,7 +13,7 @@ class Message {
     required this.id,
     required this.conversation_id,
     required this.sender_id,
-
+    required this.sender_username,
     required this.content,
     required this.created_at,
     this.is_unread, // Убрали required
@@ -24,7 +25,7 @@ class Message {
       id: json['id'],
       conversation_id: json['conversation_id'],
       sender_id: json['sender_id'],
-
+      sender_username: json['sender_username'],
       content: json['content'],
       created_at: json['created_at'],
       is_unread: json['is_unread'], // Будет null, если поля нет
@@ -41,7 +42,7 @@ class Message {
     String? id,
     String? conversation_id,
     String? sender_id,
-
+    String? sender_username,
     String? content,
     String? created_at,
     bool? is_unread,
@@ -51,7 +52,7 @@ class Message {
       id: id ?? this.id,
       conversation_id: conversation_id ?? this.conversation_id,
       sender_id: sender_id ?? this.sender_id,
-
+      sender_username: sender_username ?? this.sender_username,
       content: content ?? this.content,
       created_at: created_at ?? this.created_at,
       is_unread: is_unread ?? this.is_unread,

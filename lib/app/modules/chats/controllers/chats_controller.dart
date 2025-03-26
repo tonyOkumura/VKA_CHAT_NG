@@ -20,6 +20,7 @@ class ChatsController extends GetxController {
   final userColors = <String, Color>{}.obs; // Хранение цветов пользователей
   var selectedConversation = Rxn<Conversation>();
   final messageController = TextEditingController();
+  final messageFocusNode = FocusNode();
   final isLoading = false.obs;
   final isLoadingMessages = false.obs;
   late SocketService _socketService;
@@ -81,6 +82,7 @@ class ChatsController extends GetxController {
   @override
   void onClose() {
     messageController.dispose();
+    messageFocusNode.dispose();
     scrollController.dispose();
     _socketService.socket.off('newMessage', _handleIncomingMessage);
     _socketService.socket.off('messageRead', _handleMessageRead);
@@ -326,7 +328,8 @@ class ChatsController extends GetxController {
   void showMessageReadsDialog(
     BuildContext context,
     String messageId,
-    RenderBox messageBox,
+    Offset position,
+    Size size,
   ) {
     final message = messages.firstWhere((m) => m.id == messageId);
     // Фильтруем список прочитавших, исключая текущего пользователя
@@ -336,29 +339,27 @@ class ChatsController extends GetxController {
             .toList();
 
     if (reads.isEmpty) {
-      _showReadStatusPopup(context, messageBox, [], false);
+      _showReadStatusPopup(context, position, size, [], false);
       return;
     }
 
-    _showReadStatusPopup(context, messageBox, reads, true);
+    _showReadStatusPopup(context, position, size, reads, true);
   }
 
   void _showReadStatusPopup(
     BuildContext context,
-    RenderBox messageBox,
+    Offset position,
+    Size size,
     List<ReadByUser> reads,
     bool hasReads,
   ) {
-    final position = messageBox.localToGlobal(Offset.zero);
-    final size = messageBox.size;
-
     showMenu(
       context: context,
       position: RelativeRect.fromLTRB(
         position.dx,
-        position.dy - 100, // Показываем чуть выше сообщения
+        position.dy - 100, // Показываем над сообщением
         position.dx + size.width,
-        position.dy,
+        position.dy, // Нижняя граница совпадает с верхней границей сообщения
       ),
       items: [
         PopupMenuItem(

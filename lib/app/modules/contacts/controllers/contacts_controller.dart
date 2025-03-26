@@ -175,7 +175,8 @@ class ContactsController extends GetxController {
       },
       body: jsonEncode({'contact_email': contactEmail}),
     );
-    if (response.statusCode == 200) {
+    if (response.statusCode == 201) {
+      Get.snackbar('Успешно', 'Контакт добавлен');
       await fetchContacts();
     }
   }
@@ -213,6 +214,7 @@ class ContactsController extends GetxController {
 
         if (conversationIndex != -1) {
           chatsController.selectConversation(conversationIndex);
+          _socketService.joinConversation(data['conversation_id']);
         }
         Get.snackbar('Успешно', 'Чат создан');
       } else {

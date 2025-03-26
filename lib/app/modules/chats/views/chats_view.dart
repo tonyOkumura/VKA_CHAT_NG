@@ -300,77 +300,93 @@ class ChatMessages extends StatelessWidget {
     Message message,
     bool isSender,
   ) {
-    return GestureDetector(
-      onTap: () {
-        final RenderBox? messageBox =
-            context.findAncestorRenderObjectOfType<RenderBox>();
-        if (messageBox != null) {
-          final controller = Get.find<ChatsController>();
-          controller.showMessageReadsDialog(context, message.id, messageBox);
-        }
-      },
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        child: Align(
-          alignment: isSender ? Alignment.centerRight : Alignment.centerLeft,
-          child: Container(
-            padding: EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color:
-                  isSender
-                      ? Get.theme.colorScheme.tertiaryContainer
-                      : Get.theme.colorScheme.secondaryContainer,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Column(
-              crossAxisAlignment:
-                  isSender ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-              children: [
-                Text(message.content),
-                SizedBox(height: 5),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    !isSender
-                        ? message.is_unread ?? false
-                            ? Icon(Icons.check, size: 16, color: Colors.green)
-                            : Icon(Icons.check, size: 16, color: Colors.grey)
-                        : SizedBox(),
-                    !isSender ? SizedBox(width: 5) : SizedBox(),
-                    Text(
-                      DateFormat(
-                        'HH:mm',
-                      ).format(DateTime.parse(message.created_at).toLocal()),
-                      style: TextStyle(color: Colors.grey, fontSize: 10),
+    final controller = Get.find<ChatsController>();
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Align(
+        alignment: isSender ? Alignment.centerRight : Alignment.centerLeft,
+        child: Container(
+          padding: EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color:
+                isSender
+                    ? Get.theme.colorScheme.tertiaryContainer
+                    : Get.theme.colorScheme.secondaryContainer,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(
+            crossAxisAlignment:
+                isSender ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            children: [
+              if (!isSender &&
+                  controller.selectedConversation.value?.is_group_chat == true)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4.0),
+                  child: Text(
+                    message.sender_username,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                      color: Get.theme.colorScheme.onSecondaryContainer,
                     ),
-                    isSender ? SizedBox(width: 5) : SizedBox(),
-                    isSender ? _buildReadStatus(message) : SizedBox(),
-                  ],
+                  ),
                 ),
-              ],
-            ),
+              Text(message.content),
+              SizedBox(height: 5),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    DateFormat(
+                      'HH:mm',
+                    ).format(DateTime.parse(message.created_at).toLocal()),
+                    style: TextStyle(color: Colors.grey, fontSize: 10),
+                  ),
+                  isSender ? SizedBox(width: 5) : SizedBox(),
+                  isSender ? _buildReadStatus(context, message) : SizedBox(),
+                ],
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildReadStatus(Message message) {
+  Widget _buildReadStatus(BuildContext context, Message message) {
+    final controller = Get.find<ChatsController>();
     final readCount = message.read_by_users?.length ?? 0;
 
-    if (readCount == 0) {
-      return Icon(Icons.check, size: 16, color: Colors.grey);
-    } else if (readCount == 1) {
-      return Icon(Icons.check, size: 16, color: Colors.green);
-    } else {
-      return Row(
+    return GestureDetector(
+      onTap: () {
+        final RenderBox? messageBox =
+            context.findAncestorRenderObjectOfType<RenderBox>();
+        if (messageBox != null) {
+          final position = messageBox.localToGlobal(Offset.zero);
+          final size = messageBox.size;
+          controller.showMessageReadsDialog(
+            context,
+            message.id,
+            position,
+            size,
+          );
+        }
+      },
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.check, size: 16, color: Colors.green),
-          Icon(Icons.check, size: 16, color: Colors.green),
+          if (readCount == 0)
+            Icon(Icons.check, size: 16, color: Colors.grey)
+          else if (readCount == 1)
+            Icon(Icons.check, size: 16, color: Colors.green)
+          else
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [Icon(Icons.done_all, size: 16, color: Colors.green)],
+            ),
         ],
-      );
-    }
+      ),
+    );
   }
 }
 
@@ -386,6 +402,7 @@ class ChatInput extends StatelessWidget {
           Expanded(
             child: TextField(
               controller: controller.messageController,
+              focusNode: controller.messageFocusNode,
               decoration: InputDecoration(
                 hintText: 'Type a message',
                 border: OutlineInputBorder(
@@ -398,6 +415,7 @@ class ChatInput extends StatelessWidget {
             icon: Icon(Icons.send),
             onPressed: () {
               controller.sendMessage();
+              controller.messageFocusNode.requestFocus();
             },
           ),
         ],
