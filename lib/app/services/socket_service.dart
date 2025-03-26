@@ -21,7 +21,7 @@ class SocketService extends GetxService {
   Future<void> _initSocket() async {
     String token = await _storage.read(key: AppKeys.token) ?? '';
     _socket = IO.io(
-      'http://localhost:6000',
+      'http://192.168.43.3:6000',
       IO.OptionBuilder()
           .setTransports(['websocket'])
           .disableAutoConnect()

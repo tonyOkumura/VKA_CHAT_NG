@@ -403,6 +403,12 @@ class ChatInput extends StatelessWidget {
             child: TextField(
               controller: controller.messageController,
               focusNode: controller.messageFocusNode,
+              onSubmitted: (value) {
+                if (value.isNotEmpty) {
+                  controller.sendMessage();
+                  controller.messageFocusNode.requestFocus();
+                }
+              },
               decoration: InputDecoration(
                 hintText: 'Type a message',
                 border: OutlineInputBorder(
