@@ -1,6 +1,6 @@
 #define MyAppName "VKA Chat"
 #define MyAppVersion "1.0.0"
-#define MyAppPublisher "Your Company"
+#define MyAppPublisher "NexusXTeam"
 #define MyAppExeName "vka_chat_ng.exe"
 
 [Setup]
