@@ -16,7 +16,7 @@ class ConversationParticipants {
       conversation_id: json['conversation_id'],
       user_id: json['user_id'],
       unread_count: json['unread_count'],
-      joined_at: DateTime.parse(json['joined_at']).toLocal(),
+      joined_at: DateTime.parse(json['joined_at']),
     );
   }
 }

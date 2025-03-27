@@ -25,7 +25,7 @@ class Conversation {
       last_message: json['last_message'], // Будет null, если нет
       last_message_time:
           json['last_message_time'] != null
-              ? DateTime.parse(json['last_message_time']).toLocal()
+              ? DateTime.parse(json['last_message_time'])
               : null, // Проверяем наличие
       unread_count: json['unread_count'], // Будет null, если нет
     );

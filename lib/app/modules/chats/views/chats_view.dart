@@ -303,15 +303,14 @@ class ChatMessages extends StatelessWidget {
                 itemBuilder: (context, index) {
                   final message = controller.messages[index];
                   final isSender = message.sender_id == controller.userId;
-                  final messageDate =
-                      DateTime.parse(message.created_at).toLocal();
+                  final messageDate = DateTime.parse(message.created_at);
 
                   final showDateHeader =
                       index == controller.messages.length - 1 ||
                       messageDate.day !=
                           DateTime.parse(
                             controller.messages[index + 1].created_at,
-                          ).toLocal().day;
+                          ).day;
 
                   return Column(
                     children: [
@@ -399,9 +398,7 @@ class ChatMessages extends StatelessWidget {
                                   children: [
                                     Text(
                                       DateFormat('HH:mm').format(
-                                        DateTime.parse(
-                                          message.created_at,
-                                        ).toLocal(),
+                                        DateTime.parse(message.created_at),
                                       ),
                                       style: TextStyle(
                                         color:

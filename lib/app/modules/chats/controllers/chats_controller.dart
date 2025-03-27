@@ -255,7 +255,7 @@ class ChatsController extends GetxController {
     if (index != -1) {
       final updatedConversation = conversations[index].copyWith(
         lastMessage: message.content,
-        lastMessageTime: DateTime.parse(message.created_at).toLocal(),
+        lastMessageTime: DateTime.parse(message.created_at),
         // Увеличиваем счетчик непрочитанных только если это не текущий чат
         unreadCount:
             selectedConversation.value?.id == message.conversation_id
@@ -422,9 +422,9 @@ class ChatsController extends GetxController {
                                       style: TextStyle(fontSize: 14),
                                     ),
                                     Text(
-                                      DateFormat('HH:mm dd.MM.yyyy').format(
-                                        DateTime.parse(read.read_at).toLocal(),
-                                      ),
+                                      DateFormat(
+                                        'HH:mm dd.MM.yyyy',
+                                      ).format(DateTime.parse(read.read_at)),
                                       style: TextStyle(
                                         fontSize: 12,
                                         color: Colors.grey,
