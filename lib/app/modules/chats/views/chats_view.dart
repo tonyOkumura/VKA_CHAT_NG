@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+import 'package:sidebarx/sidebarx.dart';
 import 'package:vka_chat_ng/app/data/message_model.dart';
 import 'package:vka_chat_ng/app/routes/app_pages.dart';
 import 'package:shimmer/shimmer.dart';
@@ -12,100 +13,188 @@ class ChatsView extends GetView<ChatsController> {
 
   @override
   Widget build(BuildContext context) {
+    final sidebarXController = SidebarXController(
+      selectedIndex: 0,
+      extended: Get.width >= 900,
+    );
+
     return Scaffold(
       appBar: AppBar(title: Text('chats'.tr), centerTitle: false, elevation: 0),
-      drawer: AppDrawer(),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          // На маленьких экранах показываем либо список, либо детали
-          if (constraints.maxWidth < 900) {
-            return Obx(
-              () =>
-                  controller.selectedConversation.value == null
-                      ? ChatList()
-                      : ChatDetail(),
-            );
-          }
+      body: Row(
+        children: [
+          AppSidebar(controller: sidebarXController),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                // На маленьких экранах показываем либо список, либо детали
+                if (constraints.maxWidth < 900) {
+                  return Obx(
+                    () =>
+                        controller.selectedConversation.value == null
+                            ? ChatList()
+                            : ChatDetail(),
+                  );
+                }
 
-          // На больших экранах показываем разделенный вид
-          return Row(
-            children: [
-              // Список чатов
-              Container(
-                width: constraints.maxWidth * 0.3,
-                constraints: BoxConstraints(maxWidth: 400),
-                child: ChatList(),
-              ),
-              // Детали чата
-              Expanded(
-                child: Obx(
-                  () =>
-                      controller.selectedConversation.value == null
-                          ? Center(child: Text('select_chat'.tr))
-                          : ChatDetail(),
-                ),
-              ),
-            ],
-          );
-        },
+                // На больших экранах показываем разделенный вид
+                return Row(
+                  children: [
+                    // Список чатов
+                    Container(
+                      width: constraints.maxWidth * 0.3,
+                      constraints: BoxConstraints(maxWidth: 400),
+                      child: ChatList(),
+                    ),
+                    // Детали чата
+                    Expanded(
+                      child: Obx(
+                        () =>
+                            controller.selectedConversation.value == null
+                                ? Center(child: Text('select_chat'.tr))
+                                : ChatDetail(),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class AppDrawer extends StatelessWidget {
+class AppSidebar extends StatelessWidget {
+  final SidebarXController controller;
+
+  const AppSidebar({Key? key, required this.controller}) : super(key: key);
+
   @override
   Widget build(BuildContext context) {
-    return Drawer(
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: <Widget>[
-          DrawerHeader(
-            decoration: BoxDecoration(
-              color: Get.theme.colorScheme.primaryContainer,
-            ),
-            child: Text(
-              'menu'.tr,
-              style: TextStyle(
-                color: Get.theme.colorScheme.onPrimaryContainer,
-                fontSize: 20,
-              ),
-            ),
+    return SidebarX(
+      controller: controller,
+      theme: SidebarXTheme(
+        margin: EdgeInsets.symmetric(vertical: 16, horizontal: 10),
+        decoration: BoxDecoration(
+          color: Get.theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        hoverColor: Get.theme.colorScheme.surfaceVariant,
+        itemTextPadding: EdgeInsets.only(left: 30),
+        selectedItemTextPadding: EdgeInsets.only(left: 30),
+        itemDecoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: Get.theme.colorScheme.outline.withOpacity(0.12),
           ),
-          ListTile(
-            leading: Icon(Icons.home),
-            title: Text('messages'.tr),
-            onTap: () {
-              Get.back();
-            },
+        ),
+        selectedItemDecoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          color: Get.theme.colorScheme.primaryContainer,
+          border: Border.all(
+            color: Get.theme.colorScheme.primaryContainer,
+            width: 1,
           ),
-          ListTile(
-            leading: Icon(Icons.contacts),
-            title: Text('contacts'.tr),
-            onTap: () {
-              Get.toNamed(Routes.CONTACTS);
-            },
-          ),
-          ListTile(
-            leading: Icon(Icons.settings),
-            title: Text('settings'.tr),
-            onTap: () {
-              Get.offNamed(Routes.SETTINGS);
-            },
-          ),
-          ListTile(
-            leading: Icon(Icons.logout),
-            title: Text('logout'.tr),
-            onTap: () {
-              final _storage = FlutterSecureStorage();
-              _storage.delete(key: 'token');
-              _storage.delete(key: 'userId');
-              print("Logged out");
-              Get.offAllNamed(Routes.LOGIN);
-            },
-          ),
-        ],
+        ),
+        iconTheme: IconThemeData(
+          color: Get.theme.colorScheme.onSurfaceVariant,
+          size: 20,
+        ),
+        selectedIconTheme: IconThemeData(
+          color: Get.theme.colorScheme.onPrimaryContainer,
+          size: 20,
+        ),
+        textStyle: TextStyle(
+          color: Get.theme.colorScheme.onSurfaceVariant,
+          fontSize: 16,
+          fontFamily: 'Nunito',
+        ),
+        selectedTextStyle: TextStyle(
+          color: Get.theme.colorScheme.onPrimaryContainer,
+          fontSize: 16,
+          fontFamily: 'Nunito',
+          fontWeight: FontWeight.w600,
+        ),
       ),
+      extendedTheme: SidebarXTheme(
+        width: 200,
+        decoration: BoxDecoration(
+          color: Get.theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        margin: EdgeInsets.symmetric(vertical: 16, horizontal: 10),
+        padding: EdgeInsets.symmetric(horizontal: 10),
+        itemTextPadding: EdgeInsets.only(left: 30),
+        selectedItemTextPadding: EdgeInsets.only(left: 30),
+        itemDecoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: Get.theme.colorScheme.outline.withOpacity(0.12),
+          ),
+        ),
+        selectedItemDecoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          color: Get.theme.colorScheme.primaryContainer,
+          border: Border.all(
+            color: Get.theme.colorScheme.primaryContainer,
+            width: 1,
+          ),
+        ),
+        iconTheme: IconThemeData(
+          color: Get.theme.colorScheme.onSurfaceVariant,
+          size: 20,
+        ),
+        selectedIconTheme: IconThemeData(
+          color: Get.theme.colorScheme.onPrimaryContainer,
+          size: 20,
+        ),
+        textStyle: TextStyle(
+          color: Get.theme.colorScheme.onSurfaceVariant,
+          fontSize: 16,
+          fontFamily: 'Nunito',
+        ),
+        selectedTextStyle: TextStyle(
+          color: Get.theme.colorScheme.onPrimaryContainer,
+          fontSize: 16,
+          fontFamily: 'Nunito',
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      items: [
+        SidebarXItem(
+          icon: Icons.home,
+          label: 'messages'.tr,
+          onTap: () {
+            Get.back();
+          },
+        ),
+        SidebarXItem(
+          icon: Icons.contacts,
+          label: 'contacts'.tr,
+          onTap: () {
+            Get.toNamed(Routes.CONTACTS);
+          },
+        ),
+        SidebarXItem(
+          icon: Icons.settings,
+          label: 'settings'.tr,
+          onTap: () {
+            Get.offNamed(Routes.SETTINGS);
+          },
+        ),
+        SidebarXItem(
+          icon: Icons.logout,
+          label: 'logout'.tr,
+          onTap: () {
+            final _storage = FlutterSecureStorage();
+            _storage.delete(key: 'token');
+            _storage.delete(key: 'userId');
+            print("Logged out");
+            Get.offAllNamed(Routes.LOGIN);
+          },
+        ),
+      ],
     );
   }
 }

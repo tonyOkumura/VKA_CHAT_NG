@@ -35,7 +35,7 @@ dependencies:
   get: ^4.6.6
   google_fonts: ^6.2.1
   http: ^1.1.0
-  intl: ^0.18.1
+  intl: ^0.19.0
   jwt_decode: ^0.3.1
   jwt_decoder: ^2.0.1
   lottie: ^3.3.1
@@ -45,6 +45,8 @@ dependencies:
   socket_io_client: ^2.0.3+1
   supercharged: ^2.1.1
   shared_preferences: ^2.2.2
+  dio: ^5.4.0
+  sidebarx: ^0.17.1
 
 dev_dependencies:
   flutter_lints: ^5.0.0
