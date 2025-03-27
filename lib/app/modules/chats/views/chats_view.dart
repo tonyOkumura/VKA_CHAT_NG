@@ -538,9 +538,9 @@ class ChatMessages extends StatelessWidget {
                                   ),
                                 ),
                                 Text(
-                                  DateFormat('MMM d at HH:mm').format(
-                                    DateTime.parse(user.read_at).toLocal(),
-                                  ),
+                                  DateFormat(
+                                    'MMM d HH:mm',
+                                  ).format(DateTime.parse(user.read_at)),
                                   style: TextStyle(
                                     color:
                                         Get.theme.colorScheme.onSurfaceVariant,
