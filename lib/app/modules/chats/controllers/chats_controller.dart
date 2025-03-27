@@ -25,7 +25,8 @@ class ChatsController extends GetxController {
   final isLoadingMessages = false.obs;
   late SocketService _socketService;
   late String userId;
-  final scrollController = ScrollController();
+  final conversationsScrollController = ScrollController();
+  final messagesScrollController = ScrollController();
 
   // Список предопределенных цветов для аватаров
   final List<Color> avatarColors = [
@@ -83,10 +84,16 @@ class ChatsController extends GetxController {
         _socketService.joinConversation(conversation.id);
       }
     });
-    scrollController.addListener(() {
-      if (scrollController.position.pixels ==
-          scrollController.position.minScrollExtent) {
-        print('Reached the top of the list.');
+    conversationsScrollController.addListener(() {
+      if (conversationsScrollController.position.pixels ==
+          conversationsScrollController.position.minScrollExtent) {
+        print('Reached the top of the conversations list.');
+      }
+    });
+    messagesScrollController.addListener(() {
+      if (messagesScrollController.position.pixels ==
+          messagesScrollController.position.minScrollExtent) {
+        print('Reached the top of the messages list.');
       }
     });
   }
@@ -101,7 +108,8 @@ class ChatsController extends GetxController {
   void onClose() {
     messageController.dispose();
     messageFocusNode.dispose();
-    scrollController.dispose();
+    conversationsScrollController.dispose();
+    messagesScrollController.dispose();
     _socketService.socket.off('newMessage', _handleIncomingMessage);
     _socketService.socket.off('messageRead', _handleMessageRead);
     print('ChatsController disposed.');
@@ -278,9 +286,9 @@ class ChatsController extends GetxController {
   }
 
   void _scrollToBottom() {
-    if (scrollController.hasClients) {
-      scrollController.animateTo(
-        scrollController.position.minScrollExtent,
+    if (messagesScrollController.hasClients) {
+      messagesScrollController.animateTo(
+        messagesScrollController.position.minScrollExtent,
         duration: Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );
