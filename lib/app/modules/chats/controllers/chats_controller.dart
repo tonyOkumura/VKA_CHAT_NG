@@ -113,11 +113,13 @@ class ChatsController extends GetxController {
     print('User ID: $userId');
   }
 
-  void selectConversation(int index) {
+  void selectConversation(int? index) {
+    if (index == null) {
+      selectedConversation.value = null;
+      messages.clear();
+      return;
+    }
     selectedConversation.value = conversations[index];
-    print(
-      'Selected conversation: ${selectedConversation.value!.conversation_name}',
-    );
     fetchMessages();
   }
 

@@ -15,21 +15,39 @@ class ChatsView extends GetView<ChatsController> {
     return Scaffold(
       appBar: AppBar(title: Text('chats'.tr), centerTitle: false, elevation: 0),
       drawer: AppDrawer(),
-      body: Row(
-        children: [
-          Expanded(flex: 2, child: Container(child: ChatList())),
-          Expanded(
-            flex: 5,
-            child: Container(
-              child: Obx(
-                () =>
-                    controller.selectedConversation.value == null
-                        ? Center(child: Text('select_chat'.tr))
-                        : ChatDetail(),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          // На маленьких экранах показываем либо список, либо детали
+          if (constraints.maxWidth < 900) {
+            return Obx(
+              () =>
+                  controller.selectedConversation.value == null
+                      ? ChatList()
+                      : ChatDetail(),
+            );
+          }
+
+          // На больших экранах показываем разделенный вид
+          return Row(
+            children: [
+              // Список чатов
+              Container(
+                width: constraints.maxWidth * 0.3,
+                constraints: BoxConstraints(maxWidth: 400),
+                child: ChatList(),
               ),
-            ),
-          ),
-        ],
+              // Детали чата
+              Expanded(
+                child: Obx(
+                  () =>
+                      controller.selectedConversation.value == null
+                          ? Center(child: Text('select_chat'.tr))
+                          : ChatDetail(),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -236,6 +254,15 @@ class ChatHeader extends StatelessWidget {
         color: Get.theme.colorScheme.primaryContainer,
         child: Row(
           children: [
+            // Кнопка "назад" для маленьких экранов
+            if (MediaQuery.of(context).size.width < 900)
+              IconButton(
+                icon: Icon(
+                  Icons.arrow_back,
+                  color: Get.theme.colorScheme.onPrimaryContainer,
+                ),
+                onPressed: () => controller.selectConversation(null),
+              ),
             conversation.is_group_chat
                 ? Container(
                   width: 40,
@@ -292,6 +319,18 @@ class ChatMessages extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = Get.find<ChatsController>();
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    // Определяем максимальную ширину сообщения в зависимости от размера экрана
+    final maxMessageWidth =
+        screenWidth < 600
+            ? screenWidth *
+                0.85 // 85% ширины экрана для мобильных
+            : screenWidth < 900
+            ? screenWidth *
+                0.7 // 70% для планшетов
+            : screenWidth * 0.5; // 50% для десктопов
+
     return Obx(
       () =>
           controller.isLoadingMessages.value
@@ -322,7 +361,7 @@ class ChatMessages extends StatelessWidget {
                                 : Alignment.centerLeft,
                         child: ConstrainedBox(
                           constraints: BoxConstraints(
-                            maxWidth: MediaQuery.of(context).size.width * 0.5,
+                            maxWidth: maxMessageWidth,
                           ),
                           child: Container(
                             margin: EdgeInsets.symmetric(
