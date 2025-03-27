@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:vka_chat_ng/app/modules/settings/controllers/settings_controller.dart';
 import 'package:vka_chat_ng/app/routes/app_pages.dart';
 import 'package:vka_chat_ng/theme.dart';
 import 'package:vka_chat_ng/app/translations/app_translations.dart';
@@ -11,7 +12,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final languageController = Get.find<LanguageController>();
-    final brightness = View.of(context).platformDispatcher.platformBrightness;
+    final settingsController = Get.find<SettingsController>();
 
     return GetMaterialApp(
       title: 'VKA Chat',
@@ -20,9 +21,10 @@ class MyApp extends StatelessWidget {
       translations: AppTranslations(),
       locale: languageController.locale.value,
       fallbackLocale: const Locale('ru', 'RU'),
-      // Устанавливаем режим темы на основе предпочтения пользователя
       themeMode:
-          brightness == Brightness.dark ? ThemeMode.dark : ThemeMode.light,
+          settingsController.isDarkMode.value
+              ? ThemeMode.dark
+              : ThemeMode.light,
       initialRoute: AppPages.INITIAL,
       getPages: AppPages.routes,
       debugShowCheckedModeBanner: false,

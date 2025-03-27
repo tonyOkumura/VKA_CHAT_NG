@@ -13,46 +13,18 @@ class ChatsView extends GetView<ChatsController> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('chats'.tr),
-        centerTitle: false,
-        elevation: 0,
-        backgroundColor: Get.theme.colorScheme.primary,
-        foregroundColor: Get.theme.colorScheme.onPrimary,
-      ),
+      appBar: AppBar(title: Text('chats'.tr), centerTitle: false, elevation: 0),
       drawer: AppDrawer(),
       body: Row(
         children: [
-          Expanded(
-            flex: 2,
-            child: Container(
-              decoration: BoxDecoration(
-                color: Get.theme.colorScheme.surface,
-                border: Border(
-                  right: BorderSide(
-                    color: Get.theme.colorScheme.outline.withOpacity(0.1),
-                  ),
-                ),
-              ),
-              child: ChatList(),
-            ),
-          ),
+          Expanded(flex: 2, child: Container(child: ChatList())),
           Expanded(
             flex: 5,
             child: Container(
-              color: Get.theme.colorScheme.background,
               child: Obx(
                 () =>
                     controller.selectedConversation.value == null
-                        ? Center(
-                          child: Text(
-                            'select_chat'.tr,
-                            style: TextStyle(
-                              color: Get.theme.colorScheme.onBackground,
-                              fontSize: 16,
-                            ),
-                          ),
-                        )
+                        ? Center(child: Text('select_chat'.tr))
                         : ChatDetail(),
               ),
             ),
@@ -67,63 +39,45 @@ class AppDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Drawer(
-      backgroundColor: Get.theme.colorScheme.surface,
       child: ListView(
         padding: EdgeInsets.zero,
         children: <Widget>[
           DrawerHeader(
-            decoration: BoxDecoration(color: Get.theme.colorScheme.primary),
+            decoration: BoxDecoration(
+              color: Get.theme.colorScheme.primaryContainer,
+            ),
             child: Text(
               'menu'.tr,
               style: TextStyle(
-                color: Get.theme.colorScheme.onPrimary,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
+                color: Get.theme.colorScheme.onPrimaryContainer,
+                fontSize: 20,
               ),
             ),
           ),
           ListTile(
-            leading: Icon(Icons.home, color: Get.theme.colorScheme.onSurface),
-            title: Text(
-              'messages'.tr,
-              style: TextStyle(color: Get.theme.colorScheme.onSurface),
-            ),
+            leading: Icon(Icons.home),
+            title: Text('messages'.tr),
             onTap: () {
               Get.back();
             },
           ),
           ListTile(
-            leading: Icon(
-              Icons.contacts,
-              color: Get.theme.colorScheme.onSurface,
-            ),
-            title: Text(
-              'contacts'.tr,
-              style: TextStyle(color: Get.theme.colorScheme.onSurface),
-            ),
+            leading: Icon(Icons.contacts),
+            title: Text('contacts'.tr),
             onTap: () {
               Get.toNamed(Routes.CONTACTS);
             },
           ),
           ListTile(
-            leading: Icon(
-              Icons.settings,
-              color: Get.theme.colorScheme.onSurface,
-            ),
-            title: Text(
-              'settings'.tr,
-              style: TextStyle(color: Get.theme.colorScheme.onSurface),
-            ),
+            leading: Icon(Icons.settings),
+            title: Text('settings'.tr),
             onTap: () {
-              Get.toNamed(Routes.SETTINGS);
+              Get.offNamed(Routes.SETTINGS);
             },
           ),
           ListTile(
-            leading: Icon(Icons.logout, color: Get.theme.colorScheme.onSurface),
-            title: Text(
-              'logout'.tr,
-              style: TextStyle(color: Get.theme.colorScheme.onSurface),
-            ),
+            leading: Icon(Icons.logout),
+            title: Text('logout'.tr),
             onTap: () {
               final _storage = FlutterSecureStorage();
               _storage.delete(key: 'token');
@@ -147,26 +101,22 @@ class ChatList extends StatelessWidget {
         () =>
             controller.isLoading.value
                 ? Shimmer.fromColors(
-                  baseColor: Get.theme.colorScheme.surface,
-                  highlightColor: Get.theme.colorScheme.surface.withOpacity(
-                    0.5,
-                  ),
+                  baseColor: Colors.grey[300]!,
+                  highlightColor: Colors.grey[100]!,
                   child: ListView.builder(
                     itemCount: 10,
                     itemBuilder:
                         (context, index) => ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: Get.theme.colorScheme.surface,
-                          ),
+                          leading: CircleAvatar(backgroundColor: Colors.white),
                           title: Container(
                             width: double.infinity,
                             height: 10.0,
-                            color: Get.theme.colorScheme.surface,
+                            color: Colors.white,
                           ),
                           subtitle: Container(
                             width: double.infinity,
                             height: 10.0,
-                            color: Get.theme.colorScheme.surface,
+                            color: Colors.white,
                           ),
                         ),
                   ),
@@ -179,34 +129,27 @@ class ChatList extends StatelessWidget {
                       leading:
                           conversation.is_group_chat
                               ? Container(
+                                width: 40,
+                                height: 40,
                                 decoration: BoxDecoration(
-                                  shape: BoxShape.rectangle,
-                                  borderRadius: BorderRadius.circular(10),
-                                  color: Get.theme.colorScheme.primaryContainer,
+                                  color: Get.theme.colorScheme.tertiary,
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(8.0),
-                                  child: Icon(
-                                    Icons.group,
-                                    color:
-                                        Get
-                                            .theme
-                                            .colorScheme
-                                            .onPrimaryContainer,
-                                  ),
+                                child: Icon(
+                                  Icons.group,
+                                  color: Get.theme.colorScheme.onTertiary,
                                 ),
                               )
                               : CircleAvatar(
-                                backgroundColor:
-                                    Get.theme.colorScheme.primaryContainer,
+                                radius: 20,
+                                backgroundColor: Get.theme.colorScheme.primary,
                                 child: Text(
-                                  conversation.conversation_name[0],
+                                  conversation.conversation_name[0]
+                                      .toUpperCase(),
                                   style: TextStyle(
-                                    color:
-                                        Get
-                                            .theme
-                                            .colorScheme
-                                            .onPrimaryContainer,
+                                    color: Get.theme.colorScheme.onPrimary,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
                               ),
@@ -218,10 +161,12 @@ class ChatList extends StatelessWidget {
                         ),
                       ),
                       subtitle: Text(
+                        maxLines: 1,
                         conversation.last_message ?? "",
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: Get.theme.colorScheme.onSurfaceVariant,
+                          fontSize: 14,
                         ),
                       ),
                       trailing: Column(
@@ -229,8 +174,7 @@ class ChatList extends StatelessWidget {
                         children: [
                           Text(
                             DateFormat('MMMM d , HH:mm').format(
-                              conversation.last_message_time?.toLocal() ??
-                                  DateTime.now().toLocal(),
+                              conversation.last_message_time ?? DateTime.now(),
                             ),
                             style: TextStyle(
                               color: Get.theme.colorScheme.onSurfaceVariant,
@@ -238,25 +182,25 @@ class ChatList extends StatelessWidget {
                             ),
                           ),
                           SizedBox(height: 5),
-                          conversation.unread_count != 0
-                              ? Container(
-                                width: 20,
-                                height: 20,
-                                decoration: BoxDecoration(
-                                  color: Get.theme.colorScheme.primary,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    conversation.unread_count.toString(),
-                                    style: TextStyle(
-                                      color: Get.theme.colorScheme.onPrimary,
-                                      fontSize: 12,
-                                    ),
+                          if (conversation.unread_count != 0)
+                            Container(
+                              width: 20,
+                              height: 20,
+                              decoration: BoxDecoration(
+                                color: Get.theme.colorScheme.secondary,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  conversation.unread_count.toString(),
+                                  style: TextStyle(
+                                    color: Get.theme.colorScheme.onSecondary,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                              )
-                              : SizedBox(),
+                              ),
+                            ),
                         ],
                       ),
                       onTap: () {
@@ -285,42 +229,62 @@ class ChatHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = Get.find<ChatsController>();
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Get.theme.colorScheme.primary,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            backgroundColor: Get.theme.colorScheme.onPrimary,
-            child: Text(
-              controller.selectedConversation.value!.conversation_name[0],
-              style: TextStyle(
-                color: Get.theme.colorScheme.primary,
-                fontWeight: FontWeight.bold,
+    return Obx(() {
+      final conversation = controller.selectedConversation.value!;
+      return Container(
+        padding: EdgeInsets.all(16),
+        color: Get.theme.colorScheme.primaryContainer,
+        child: Row(
+          children: [
+            conversation.is_group_chat
+                ? Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Get.theme.colorScheme.primary,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.group,
+                    color: Get.theme.colorScheme.onPrimary,
+                  ),
+                )
+                : CircleAvatar(
+                  radius: 20,
+                  backgroundColor: Get.theme.colorScheme.primary,
+                  child: Text(
+                    conversation.conversation_name[0].toUpperCase(),
+                    style: TextStyle(
+                      color: Get.theme.colorScheme.onPrimary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+            SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                conversation.conversation_name,
+                style: TextStyle(
+                  color: Get.theme.colorScheme.onPrimaryContainer,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
-          ),
-          SizedBox(width: 16),
-          Text(
-            controller.selectedConversation.value!.conversation_name,
-            style: TextStyle(
-              color: Get.theme.colorScheme.onPrimary,
-              fontSize: 20,
-              fontWeight: FontWeight.w500,
+            IconButton(
+              icon: Icon(
+                Icons.more_vert,
+                color: Get.theme.colorScheme.onPrimaryContainer,
+              ),
+              onPressed: () {
+                // TODO: Implement chat options menu
+              },
             ),
-          ),
-        ],
-      ),
-    );
+          ],
+        ),
+      );
+    });
   }
 }
 
@@ -331,11 +295,7 @@ class ChatMessages extends StatelessWidget {
     return Obx(
       () =>
           controller.isLoadingMessages.value
-              ? Center(
-                child: CircularProgressIndicator(
-                  color: Get.theme.colorScheme.primary,
-                ),
-              )
+              ? Center(child: CircularProgressIndicator())
               : ListView.builder(
                 controller: controller.scrollController,
                 reverse: true,
@@ -343,120 +303,131 @@ class ChatMessages extends StatelessWidget {
                 itemBuilder: (context, index) {
                   final message = controller.messages[index];
                   final isSender = message.sender_id == controller.userId;
+                  final messageDate =
+                      DateTime.parse(message.created_at).toLocal();
 
                   final showDateHeader =
                       index == controller.messages.length - 1 ||
-                      DateTime.parse(message.created_at).toLocal().day !=
+                      messageDate.day !=
                           DateTime.parse(
                             controller.messages[index + 1].created_at,
                           ).toLocal().day;
 
                   return Column(
                     children: [
-                      if (showDateHeader)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8.0),
-                          child: Text(
-                            DateFormat('MMMM d, y').format(
-                              DateTime.parse(message.created_at).toLocal(),
-                            ),
-                            style: TextStyle(
-                              color: Get.theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ),
+                      if (showDateHeader) _buildDateHeader(messageDate),
                       Align(
                         alignment:
                             isSender
                                 ? Alignment.centerRight
                                 : Alignment.centerLeft,
-                        child: Container(
-                          margin: EdgeInsets.symmetric(
-                            horizontal: 8.0,
-                            vertical: 4.0,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: MediaQuery.of(context).size.width * 0.5,
                           ),
-                          padding: EdgeInsets.all(12.0),
-                          decoration: BoxDecoration(
-                            color:
-                                isSender
-                                    ? Get.theme.colorScheme.primary
-                                    : Get.theme.colorScheme.surfaceVariant,
-                            borderRadius: BorderRadius.circular(12.0),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Get.theme.colorScheme.shadow.withOpacity(
-                                  0.1,
+                          child: Container(
+                            margin: EdgeInsets.symmetric(
+                              horizontal: 8.0,
+                              vertical: 4.0,
+                            ),
+                            padding: EdgeInsets.all(12.0),
+                            decoration: BoxDecoration(
+                              color:
+                                  isSender
+                                      ? Get.theme.colorScheme.tertiaryContainer
+                                      : Get
+                                          .theme
+                                          .colorScheme
+                                          .secondaryContainer,
+                              borderRadius: BorderRadius.circular(12.0),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Get.theme.colorScheme.shadow
+                                      .withOpacity(0.1),
+                                  blurRadius: 4,
+                                  offset: Offset(0, 2),
                                 ),
-                                blurRadius: 4,
-                                offset: Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (!isSender &&
-                                  controller
-                                      .selectedConversation
-                                      .value!
-                                      .is_group_chat) ...[
-                                Text(
-                                  message.sender_username,
-                                  style: TextStyle(
-                                    color: controller.getUserColor(
-                                      message.sender_id,
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment:
+                                  isSender
+                                      ? CrossAxisAlignment.end
+                                      : CrossAxisAlignment.start,
+                              children: [
+                                if (!isSender &&
+                                    controller
+                                        .selectedConversation
+                                        .value!
+                                        .is_group_chat) ...[
+                                  Text(
+                                    message.sender_username,
+                                    style: TextStyle(
+                                      color: controller.getUserColor(
+                                        message.sender_id,
+                                      ),
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
                                     ),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  SizedBox(height: 4),
+                                ],
+                                Text(
+                                  message.content,
+                                  style: TextStyle(
+                                    color:
+                                        isSender
+                                            ? Get
+                                                .theme
+                                                .colorScheme
+                                                .onTertiaryContainer
+                                            : Get
+                                                .theme
+                                                .colorScheme
+                                                .onSecondaryContainer,
+                                    fontSize: 16,
+                                    fontFamily: 'Nunito',
                                   ),
                                 ),
                                 SizedBox(height: 4),
-                              ],
-                              Text(
-                                message.content,
-                                style: TextStyle(
-                                  color:
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  mainAxisAlignment:
                                       isSender
-                                          ? Get.theme.colorScheme.onPrimary
-                                          : Get.theme.colorScheme.onSurface,
-                                ),
-                              ),
-                              SizedBox(height: 4),
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                mainAxisAlignment:
-                                    isSender
-                                        ? MainAxisAlignment.end
-                                        : MainAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    DateFormat('HH:mm').format(
-                                      DateTime.parse(
-                                        message.created_at,
-                                      ).toLocal(),
+                                          ? MainAxisAlignment.end
+                                          : MainAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      DateFormat('HH:mm').format(
+                                        DateTime.parse(
+                                          message.created_at,
+                                        ).toLocal(),
+                                      ),
+                                      style: TextStyle(
+                                        color:
+                                            isSender
+                                                ? Get
+                                                    .theme
+                                                    .colorScheme
+                                                    .onTertiaryContainer
+                                                : Get
+                                                    .theme
+                                                    .colorScheme
+                                                    .onSecondaryContainer,
+                                        fontSize: 14,
+                                      ),
                                     ),
-                                    style: TextStyle(
-                                      color:
-                                          isSender
-                                              ? Get.theme.colorScheme.onPrimary
-                                                  .withOpacity(0.7)
-                                              : Get
-                                                  .theme
-                                                  .colorScheme
-                                                  .onSurfaceVariant,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                  if (isSender) ...[
-                                    SizedBox(width: 4),
-                                    SizedBox(
-                                      width: 20,
-                                      child: _buildReadStatus(message),
-                                    ),
+                                    if (isSender) ...[
+                                      SizedBox(width: 4),
+                                      SizedBox(
+                                        width: 20,
+                                        child: _buildReadStatus(message),
+                                      ),
+                                    ],
                                   ],
-                                ],
-                              ),
-                            ],
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -465,6 +436,37 @@ class ChatMessages extends StatelessWidget {
                 },
               ),
     );
+  }
+
+  Widget _buildDateHeader(DateTime date) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 30.0, horizontal: 16.0),
+      child: Text(
+        _formatDate(date),
+        style: TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+          fontFamily: 'Nunito',
+          color: Get.theme.colorScheme.secondary,
+        ),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    if (date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day) {
+      return "Сегодня";
+    } else if (date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day - 1) {
+      return "Вчера";
+    } else {
+      return "${date.day}.${date.month}.${date.year}";
+    }
   }
 
   Widget _buildReadStatus(Message message) {
@@ -485,7 +487,6 @@ class ChatMessages extends StatelessWidget {
       enabled: true,
       tooltip: '',
       offset: Offset(0, -10),
-      color: Get.theme.colorScheme.surfaceVariant,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       itemBuilder:
           (context) => [
@@ -552,7 +553,7 @@ class ChatMessages extends StatelessWidget {
                           Icon(
                             Icons.check,
                             size: 16,
-                            color: Get.theme.colorScheme.primary,
+                            color: Get.theme.colorScheme.tertiary,
                           ),
                         ],
                       ),
@@ -564,18 +565,18 @@ class ChatMessages extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (!isReadByCurrentUser)
+            Icon(Icons.check, size: 16)
+          else if (readCount == 0)
             Icon(
               Icons.check,
               size: 16,
-              color: Get.theme.colorScheme.onPrimary.withOpacity(0.7),
+              color: Get.theme.colorScheme.onTertiaryContainer,
             )
-          else if (readCount == 0)
-            Icon(Icons.check, size: 16, color: Get.theme.colorScheme.onPrimary)
           else
             Icon(
               Icons.done_all,
               size: 16,
-              color: Get.theme.colorScheme.onPrimary,
+              color: Get.theme.colorScheme.onTertiaryContainer,
             ),
         ],
       ),
@@ -589,25 +590,22 @@ class ChatInput extends StatelessWidget {
     final controller = Get.find<ChatsController>();
     return Container(
       padding: EdgeInsets.all(8.0),
-      decoration: BoxDecoration(
-        color: Get.theme.colorScheme.surface,
-        boxShadow: [
-          BoxShadow(
-            color: Get.theme.colorScheme.shadow.withOpacity(0.1),
-            blurRadius: 4,
-            offset: Offset(0, -2),
-          ),
-        ],
-      ),
+      decoration: BoxDecoration(color: Get.theme.colorScheme.surface),
       child: Row(
         children: [
           Expanded(
             child: TextField(
               controller: controller.messageController,
+              maxLines: 5,
+              minLines: 1,
+              textInputAction: TextInputAction.send,
+              keyboardType: TextInputType.multiline,
+              autofocus: true,
               decoration: InputDecoration(
                 hintText: 'type_message'.tr,
                 hintStyle: TextStyle(
                   color: Get.theme.colorScheme.onSurfaceVariant,
+                  fontFamily: 'Nunito',
                 ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24.0),
@@ -631,9 +629,20 @@ class ChatInput extends StatelessWidget {
                 filled: true,
                 fillColor: Get.theme.colorScheme.surfaceVariant,
               ),
-              style: TextStyle(color: Get.theme.colorScheme.onSurfaceVariant),
+              style: TextStyle(
+                color: Get.theme.colorScheme.onSurfaceVariant,
+                fontSize: 16,
+                fontFamily: 'Nunito',
+              ),
               cursorColor: Get.theme.colorScheme.primary,
               focusNode: controller.messageFocusNode,
+              onSubmitted: (value) {
+                if (value.isNotEmpty) {
+                  controller.sendMessage();
+                  controller.messageController.clear();
+                  controller.messageFocusNode.requestFocus();
+                }
+              },
             ),
           ),
           SizedBox(width: 8.0),
@@ -643,6 +652,7 @@ class ChatInput extends StatelessWidget {
               if (controller.messageController.text.isNotEmpty) {
                 controller.sendMessage();
                 controller.messageController.clear();
+                controller.messageFocusNode.requestFocus();
               }
             },
           ),
