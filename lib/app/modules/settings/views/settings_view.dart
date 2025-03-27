@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controllers/settings_controller.dart';
+import 'language_selector.dart';
 
 class SettingsView extends GetView<SettingsController> {
   const SettingsView({super.key});
@@ -8,14 +9,14 @@ class SettingsView extends GetView<SettingsController> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings'), centerTitle: true),
+      appBar: AppBar(title: Text('settings'.tr), centerTitle: true),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: ListView(
           children: [
             ListTile(
               leading: Icon(Icons.brightness_6),
-              title: Text('Dark Mode'),
+              title: Text('theme'.tr),
               trailing: Obx(
                 () => Switch(
                   value: controller.isDarkMode.value,
@@ -25,34 +26,36 @@ class SettingsView extends GetView<SettingsController> {
                 ),
               ),
             ),
-            Divider(),
+            const Divider(),
+            const LanguageSelector(),
+            const Divider(),
             ListTile(
               leading: Icon(Icons.account_circle),
-              title: Text('Account'),
+              title: Text('profile'.tr),
               onTap: () {
                 // Navigate to account settings
               },
             ),
-            Divider(),
+            const Divider(),
             ListTile(
               leading: Icon(Icons.notifications),
-              title: Text('Notifications'),
+              title: Text('notifications'.tr),
               onTap: () {
                 // Navigate to notification settings
               },
             ),
-            Divider(),
+            const Divider(),
             ListTile(
               leading: Icon(Icons.lock),
-              title: Text('Privacy'),
+              title: Text('privacy'.tr),
               onTap: () {
                 // Navigate to privacy settings
               },
             ),
-            Divider(),
+            const Divider(),
             ListTile(
               leading: Icon(Icons.help),
-              title: Text('Help & Support'),
+              title: Text('help_support'.tr),
               onTap: () {
                 // Navigate to help & support
               },

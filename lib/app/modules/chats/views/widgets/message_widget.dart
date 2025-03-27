@@ -21,6 +21,7 @@ class MessageWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = Get.find<ChatsController>();
+    final theme = Get.theme;
 
     return GestureDetector(
       onTap: () => onMessageTap(message.id),
@@ -56,7 +57,10 @@ class MessageWidget extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: isMe ? Colors.blue : Colors.grey[200],
+                  color:
+                      isMe
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.surfaceVariant,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Column(
@@ -69,14 +73,20 @@ class MessageWidget extends StatelessWidget {
                           message.sender_id,
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: isMe ? Colors.white : Colors.black87,
+                            color:
+                                isMe
+                                    ? theme.colorScheme.onPrimary
+                                    : theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ),
                     Text(
                       message.content,
                       style: TextStyle(
-                        color: isMe ? Colors.white : Colors.black87,
+                        color:
+                            isMe
+                                ? theme.colorScheme.onPrimary
+                                : theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -89,20 +99,45 @@ class MessageWidget extends StatelessWidget {
                           ),
                           style: TextStyle(
                             fontSize: 12,
-                            color: isMe ? Colors.white70 : Colors.black54,
+                            color:
+                                isMe
+                                    ? theme.colorScheme.onPrimary.withOpacity(
+                                      0.7,
+                                    )
+                                    : theme.colorScheme.onSurfaceVariant
+                                        .withOpacity(0.7),
                           ),
                         ),
                         if (isMe) ...[
                           const SizedBox(width: 4),
-                          Icon(
-                            message.is_unread ?? true
-                                ? Icons.check
-                                : Icons.done_all,
-                            size: 16,
-                            color:
-                                (message.is_unread ?? true)
-                                    ? Colors.white70
-                                    : Colors.blue[100],
+                          GestureDetector(
+                            onTap: () {
+                              final RenderBox button =
+                                  context.findRenderObject() as RenderBox;
+                              final position = button.localToGlobal(
+                                Offset.zero,
+                              );
+                              final size = button.size;
+                              controller.showMessageReadsDialog(
+                                context,
+                                message.id,
+                                position,
+                                size,
+                              );
+                            },
+                            child: Icon(
+                              message.is_unread ?? true
+                                  ? Icons.check
+                                  : Icons.done_all,
+                              size: 16,
+                              color:
+                                  isMe
+                                      ? theme.colorScheme.onPrimary.withOpacity(
+                                        0.7,
+                                      )
+                                      : theme.colorScheme.onSurfaceVariant
+                                          .withOpacity(0.7),
+                            ),
                           ),
                         ],
                       ],

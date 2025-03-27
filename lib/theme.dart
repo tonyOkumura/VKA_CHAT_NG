@@ -4,49 +4,109 @@ class AppTheme {
   // Основная текстовая тема с шрифтом Jura
   static const TextTheme juraTextTheme = TextTheme(
     displayLarge: TextStyle(
-        fontFamily: 'Jura', fontWeight: FontWeight.bold, fontSize: 32),
+      fontFamily: 'Jura',
+      fontWeight: FontWeight.bold,
+      fontSize: 32,
+    ),
     displayMedium: TextStyle(
-        fontFamily: 'Jura', fontWeight: FontWeight.w600, fontSize: 28),
+      fontFamily: 'Jura',
+      fontWeight: FontWeight.w600,
+      fontSize: 28,
+    ),
     displaySmall: TextStyle(
-        fontFamily: 'Jura', fontWeight: FontWeight.w500, fontSize: 24),
+      fontFamily: 'Jura',
+      fontWeight: FontWeight.w500,
+      fontSize: 24,
+    ),
     headlineMedium: TextStyle(
-        fontFamily: 'Jura', fontWeight: FontWeight.w600, fontSize: 20),
+      fontFamily: 'Jura',
+      fontWeight: FontWeight.w600,
+      fontSize: 20,
+    ),
     headlineSmall: TextStyle(
-        fontFamily: 'Jura', fontWeight: FontWeight.w500, fontSize: 18),
+      fontFamily: 'Jura',
+      fontWeight: FontWeight.w500,
+      fontSize: 18,
+    ),
     titleLarge: TextStyle(
-        fontFamily: 'Jura', fontWeight: FontWeight.w600, fontSize: 16),
+      fontFamily: 'Jura',
+      fontWeight: FontWeight.w600,
+      fontSize: 16,
+    ),
     bodyLarge: TextStyle(
-        fontFamily: 'Jura', fontWeight: FontWeight.normal, fontSize: 14),
+      fontFamily: 'Jura',
+      fontWeight: FontWeight.normal,
+      fontSize: 14,
+    ),
     bodyMedium: TextStyle(
-        fontFamily: 'Jura', fontWeight: FontWeight.w300, fontSize: 12),
+      fontFamily: 'Jura',
+      fontWeight: FontWeight.w300,
+      fontSize: 12,
+    ),
     labelLarge: TextStyle(
-        fontFamily: 'Jura', fontWeight: FontWeight.w600, fontSize: 14),
+      fontFamily: 'Jura',
+      fontWeight: FontWeight.w600,
+      fontSize: 14,
+    ),
     labelSmall: TextStyle(
-        fontFamily: 'Jura', fontWeight: FontWeight.w400, fontSize: 10),
+      fontFamily: 'Jura',
+      fontWeight: FontWeight.w400,
+      fontSize: 10,
+    ),
   );
 
   // Вспомогательная текстовая тема с шрифтом Nunito
   static const TextTheme nunitoTextTheme = TextTheme(
     displayLarge: TextStyle(
-        fontFamily: 'Nunito', fontWeight: FontWeight.bold, fontSize: 32),
+      fontFamily: 'Nunito',
+      fontWeight: FontWeight.bold,
+      fontSize: 32,
+    ),
     displayMedium: TextStyle(
-        fontFamily: 'Nunito', fontWeight: FontWeight.w600, fontSize: 28),
+      fontFamily: 'Nunito',
+      fontWeight: FontWeight.w600,
+      fontSize: 28,
+    ),
     displaySmall: TextStyle(
-        fontFamily: 'Nunito', fontWeight: FontWeight.w500, fontSize: 24),
+      fontFamily: 'Nunito',
+      fontWeight: FontWeight.w500,
+      fontSize: 24,
+    ),
     headlineMedium: TextStyle(
-        fontFamily: 'Nunito', fontWeight: FontWeight.w600, fontSize: 20),
+      fontFamily: 'Nunito',
+      fontWeight: FontWeight.w600,
+      fontSize: 20,
+    ),
     headlineSmall: TextStyle(
-        fontFamily: 'Nunito', fontWeight: FontWeight.w500, fontSize: 18),
+      fontFamily: 'Nunito',
+      fontWeight: FontWeight.w500,
+      fontSize: 18,
+    ),
     titleLarge: TextStyle(
-        fontFamily: 'Nunito', fontWeight: FontWeight.w600, fontSize: 16),
+      fontFamily: 'Nunito',
+      fontWeight: FontWeight.w600,
+      fontSize: 16,
+    ),
     bodyLarge: TextStyle(
-        fontFamily: 'Nunito', fontWeight: FontWeight.normal, fontSize: 14),
+      fontFamily: 'Nunito',
+      fontWeight: FontWeight.normal,
+      fontSize: 14,
+    ),
     bodyMedium: TextStyle(
-        fontFamily: 'Nunito', fontWeight: FontWeight.w300, fontSize: 12),
+      fontFamily: 'Nunito',
+      fontWeight: FontWeight.w300,
+      fontSize: 12,
+    ),
     labelLarge: TextStyle(
-        fontFamily: 'Nunito', fontWeight: FontWeight.w600, fontSize: 14),
+      fontFamily: 'Nunito',
+      fontWeight: FontWeight.w600,
+      fontSize: 14,
+    ),
     labelSmall: TextStyle(
-        fontFamily: 'Nunito', fontWeight: FontWeight.w400, fontSize: 10),
+      fontFamily: 'Nunito',
+      fontWeight: FontWeight.w400,
+      fontSize: 10,
+    ),
   );
 
   // Метод для создания светлой темы
