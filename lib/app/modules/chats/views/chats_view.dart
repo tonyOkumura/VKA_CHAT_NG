@@ -6,6 +6,7 @@ import 'package:sidebarx/sidebarx.dart';
 import 'package:vka_chat_ng/app/data/message_model.dart';
 import 'package:vka_chat_ng/app/routes/app_pages.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:vka_chat_ng/app/widgets/main_layout.dart';
 import '../controllers/chats_controller.dart';
 
 class ChatsView extends GetView<ChatsController> {
@@ -13,53 +14,48 @@ class ChatsView extends GetView<ChatsController> {
 
   @override
   Widget build(BuildContext context) {
-    final sidebarXController = SidebarXController(
+    return MainLayout(
       selectedIndex: 0,
-      extended: Get.width >= 900,
-    );
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text('chats'.tr),
+          centerTitle: false,
+          elevation: 0,
+        ),
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            // На маленьких экранах показываем либо список, либо детали
+            if (constraints.maxWidth < 900) {
+              return Obx(
+                () =>
+                    controller.selectedConversation.value == null
+                        ? ChatList()
+                        : ChatDetail(),
+              );
+            }
 
-    return Scaffold(
-      appBar: AppBar(title: Text('chats'.tr), centerTitle: false, elevation: 0),
-      body: Row(
-        children: [
-          AppSidebar(controller: sidebarXController),
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                // На маленьких экранах показываем либо список, либо детали
-                if (constraints.maxWidth < 900) {
-                  return Obx(
+            // На больших экранах показываем разделенный вид
+            return Row(
+              children: [
+                // Список чатов
+                Container(
+                  width: constraints.maxWidth * 0.3,
+                  constraints: BoxConstraints(maxWidth: 400),
+                  child: ChatList(),
+                ),
+                // Детали чата
+                Expanded(
+                  child: Obx(
                     () =>
                         controller.selectedConversation.value == null
-                            ? ChatList()
+                            ? Center(child: Text('select_chat'.tr))
                             : ChatDetail(),
-                  );
-                }
-
-                // На больших экранах показываем разделенный вид
-                return Row(
-                  children: [
-                    // Список чатов
-                    Container(
-                      width: constraints.maxWidth * 0.3,
-                      constraints: BoxConstraints(maxWidth: 400),
-                      child: ChatList(),
-                    ),
-                    // Детали чата
-                    Expanded(
-                      child: Obx(
-                        () =>
-                            controller.selectedConversation.value == null
-                                ? Center(child: Text('select_chat'.tr))
-                                : ChatDetail(),
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
-        ],
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -299,7 +295,9 @@ class ChatList extends StatelessWidget {
                               ),
                               child: Center(
                                 child: Text(
-                                  conversation.unread_count.toString(),
+                                  (conversation.unread_count ?? 0) > 99
+                                      ? '99'
+                                      : conversation.unread_count.toString(),
                                   style: TextStyle(
                                     color: Get.theme.colorScheme.onSecondary,
                                     fontSize: 14,
@@ -344,7 +342,7 @@ class ChatHeader extends StatelessWidget {
         child: Row(
           children: [
             // Кнопка "назад" для маленьких экранов
-            if (MediaQuery.of(context).size.width < 900)
+            if (MediaQuery.of(context).size.width < 1000)
               IconButton(
                 icon: Icon(
                   Icons.arrow_back,

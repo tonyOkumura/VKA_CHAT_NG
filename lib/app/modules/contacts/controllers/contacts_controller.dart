@@ -105,17 +105,17 @@ class ContactsController extends GetxController {
         }
       }
 
-      // Обновляем список чатов и переходим к созданному чату
-      final chatsController = Get.find<ChatsController>();
-      await chatsController.fetchConversations();
+      // // Обновляем список чатов и переходим к созданному чату
+      // final chatsController = Get.find<ChatsController>();
+      // await chatsController.fetchConversations();
 
-      final conversationIndex = chatsController.conversations.indexWhere(
-        (c) => c.id == conversationId,
-      );
+      // final conversationIndex = chatsController.conversations.indexWhere(
+      //   (c) => c.id == conversationId,
+      // );
 
-      if (conversationIndex != -1) {
-        chatsController.selectConversation(conversationIndex);
-      }
+      // if (conversationIndex != -1) {
+      //   chatsController.selectConversation(conversationIndex);
+      // }
       Get.snackbar('Успешно', 'Групповой чат создан');
     } catch (e) {
       print('Error creating group chat: $e');
@@ -204,24 +204,25 @@ class ContactsController extends GetxController {
         final _socketService = Get.find<SocketService>();
         _socketService.joinConversation(data['conversation_id']);
         print(data);
-        final chatsController = Get.find<ChatsController>();
-        await chatsController.fetchConversations();
+        Get.snackbar("Успешно", "Чат создан");
+        // final chatsController = Get.find<ChatsController>();
+        // await chatsController.fetchConversations();
 
-        final conversationIndex = chatsController.conversations.indexWhere(
-          (c) => c.id == data['conversation_id'],
-        );
-
-        if (conversationIndex != -1) {
-          chatsController.selectConversation(conversationIndex);
-          _socketService.joinConversation(data['conversation_id']);
-        }
-        Get.snackbar('Успешно', 'Чат создан');
-      } else {
-        Get.snackbar(
-          'Ошибка',
-          'Не удалось создать чат',
-          snackPosition: SnackPosition.BOTTOM,
-        );
+        // final conversationIndex = chatsController.conversations.indexWhere(
+        //   (c) => c.id == data['conversation_id'],
+        // );
+        // _socketService.joinConversation(data['conversation_id']);
+        //   if (conversationIndex != -1) {
+        //     chatsController.selectConversation(conversationIndex);
+        //     _socketService.joinConversation(data['conversation_id']);
+        //   }
+        //   Get.snackbar('Успешно', 'Чат создан');
+        // } else {
+        //   Get.snackbar(
+        //     'Ошибка',
+        //     'Не удалось создать чат',
+        //     snackPosition: SnackPosition.BOTTOM,
+        //   );
       }
     } catch (e) {
       print('Error creating conversation: $e');
