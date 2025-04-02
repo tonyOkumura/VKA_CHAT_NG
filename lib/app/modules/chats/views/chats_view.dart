@@ -3,6 +3,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:sidebarx/sidebarx.dart';
+import 'package:vka_chat_ng/app/data/chat_participant_model.dart';
+import 'package:vka_chat_ng/app/data/conversation_model.dart';
 import 'package:vka_chat_ng/app/data/message_model.dart';
 import 'package:vka_chat_ng/app/routes/app_pages.dart';
 import 'package:shimmer/shimmer.dart';
@@ -21,6 +23,17 @@ class ChatsView extends GetView<ChatsController> {
           title: Text('chats'.tr),
           centerTitle: false,
           elevation: 0,
+          actions: [
+            IconButton(
+              onPressed: () async {
+                await controller.fetchConversations();
+                if (controller.selectedConversation.value != null) {
+                  controller.fetchMessages();
+                }
+              },
+              icon: Icon(Icons.refresh),
+            ),
+          ],
         ),
         body: LayoutBuilder(
           builder: (context, constraints) {
@@ -200,120 +213,242 @@ class ChatList extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = Get.find<ChatsController>();
     return Container(
-      child: Obx(
-        () =>
-            controller.isLoading.value
-                ? Shimmer.fromColors(
-                  baseColor: Colors.grey[300]!,
-                  highlightColor: Colors.grey[100]!,
-                  child: ListView.builder(
-                    itemCount: 10,
-                    itemBuilder:
-                        (context, index) => ListTile(
-                          leading: CircleAvatar(backgroundColor: Colors.white),
-                          title: Container(
-                            width: double.infinity,
-                            height: 10.0,
-                            color: Colors.white,
-                          ),
-                          subtitle: Container(
-                            width: double.infinity,
-                            height: 10.0,
-                            color: Colors.white,
-                          ),
+      child: Column(
+        children: [
+          // Добавляем переключатель вкладок
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Obx(
+                    () => ElevatedButton(
+                      onPressed: () => controller.switchTab(0),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor:
+                            controller.selectedTab.value == 0
+                                ? Get.theme.colorScheme.primaryContainer
+                                : Get.theme.colorScheme.surface,
+                        foregroundColor:
+                            controller.selectedTab.value == 0
+                                ? Get.theme.colorScheme.onPrimaryContainer
+                                : Get.theme.colorScheme.onSurface,
+                        elevation: 0,
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
+                      ),
+                      child: Text('Группы'),
+                    ),
                   ),
-                )
-                : ListView.builder(
-                  itemCount: controller.conversations.length,
-                  itemBuilder: (context, index) {
-                    final conversation = controller.conversations[index];
-                    return ListTile(
-                      leading:
-                          conversation.is_group_chat
-                              ? Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: Get.theme.colorScheme.tertiary,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Icon(
-                                  Icons.group,
-                                  color: Get.theme.colorScheme.onTertiary,
-                                ),
-                              )
-                              : CircleAvatar(
-                                radius: 20,
-                                backgroundColor: Get.theme.colorScheme.primary,
-                                child: Text(
-                                  conversation.conversation_name[0]
-                                      .toUpperCase(),
-                                  style: TextStyle(
-                                    color: Get.theme.colorScheme.onPrimary,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                      title: Text(
-                        conversation.conversation_name,
-                        style: TextStyle(
-                          color: Get.theme.colorScheme.onSurface,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      subtitle: Text(
-                        maxLines: 1,
-                        conversation.last_message ?? "",
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Get.theme.colorScheme.onSurfaceVariant,
-                          fontSize: 14,
-                        ),
-                      ),
-                      trailing: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            DateFormat('MMMM d , HH:mm').format(
-                              conversation.last_message_time ?? DateTime.now(),
-                            ),
-                            style: TextStyle(
-                              color: Get.theme.colorScheme.onSurfaceVariant,
-                              fontSize: 12,
-                            ),
-                          ),
-                          SizedBox(height: 5),
-                          if (conversation.unread_count != 0)
-                            Container(
-                              width: 20,
-                              height: 20,
-                              decoration: BoxDecoration(
-                                color: Get.theme.colorScheme.secondary,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Center(
-                                child: Text(
-                                  (conversation.unread_count ?? 0) > 99
-                                      ? '99'
-                                      : conversation.unread_count.toString(),
-                                  style: TextStyle(
-                                    color: Get.theme.colorScheme.onSecondary,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                      onTap: () {
-                        controller.selectConversation(index);
-                      },
-                    );
-                  },
                 ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Obx(
+                    () => ElevatedButton(
+                      onPressed: () => controller.switchTab(1),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor:
+                            controller.selectedTab.value == 1
+                                ? Get.theme.colorScheme.primaryContainer
+                                : Get.theme.colorScheme.surface,
+                        foregroundColor:
+                            controller.selectedTab.value == 1
+                                ? Get.theme.colorScheme.onPrimaryContainer
+                                : Get.theme.colorScheme.onSurface,
+                        elevation: 0,
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text('Диалоги'),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Поле поиска
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: TextField(
+              controller: controller.searchController,
+              focusNode: controller.searchFocusNode,
+              decoration: InputDecoration(
+                hintText:
+                    'Поиск ${controller.selectedTab.value == 0 ? 'чатов' : 'диалогов'}...',
+                prefixIcon: Icon(Icons.search),
+                suffixIcon:
+                    controller.searchController.text.isNotEmpty
+                        ? InkWell(
+                          onTap: () {
+                            controller.searchController.clear();
+                            controller.filterConversations('');
+                          },
+                          child: Icon(Icons.clear),
+                        )
+                        : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Get.theme.colorScheme.outline),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Get.theme.colorScheme.outline),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: Get.theme.colorScheme.primary,
+                    width: 2,
+                  ),
+                ),
+                filled: true,
+                fillColor: Get.theme.colorScheme.surfaceVariant,
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+              ),
+              onChanged: (value) => controller.filterConversations(value),
+              onTapOutside: (event) => controller.searchFocusNode.unfocus(),
+              onSubmitted: (value) => controller.searchFocusNode.unfocus(),
+            ),
+          ),
+          // Список чатов/диалогов
+          Expanded(
+            child: Obx(
+              () =>
+                  controller.isLoading.value
+                      ? Shimmer.fromColors(
+                        baseColor: Colors.grey[300]!,
+                        highlightColor: Colors.grey[100]!,
+                        child: ListView.builder(
+                          itemCount: 10,
+                          itemBuilder:
+                              (context, index) => ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: Colors.white,
+                                ),
+                                title: Container(
+                                  width: double.infinity,
+                                  height: 10.0,
+                                  color: Colors.white,
+                                ),
+                                subtitle: Container(
+                                  width: double.infinity,
+                                  height: 10.0,
+                                  color: Colors.white,
+                                ),
+                              ),
+                        ),
+                      )
+                      : ListView.builder(
+                        itemCount: controller.filteredConversations.length,
+                        itemBuilder: (context, index) {
+                          final conversation =
+                              controller.filteredConversations[index];
+                          return ListTile(
+                            leading:
+                                conversation.is_group_chat
+                                    ? Container(
+                                      width: 40,
+                                      height: 40,
+                                      decoration: BoxDecoration(
+                                        color: Get.theme.colorScheme.tertiary,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Icon(
+                                        Icons.group,
+                                        color: Get.theme.colorScheme.onTertiary,
+                                      ),
+                                    )
+                                    : CircleAvatar(
+                                      radius: 20,
+                                      backgroundColor:
+                                          Get.theme.colorScheme.primary,
+                                      child: Text(
+                                        conversation.conversation_name[0]
+                                            .toUpperCase(),
+                                        style: TextStyle(
+                                          color:
+                                              Get.theme.colorScheme.onPrimary,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                            title: Text(
+                              conversation.conversation_name,
+                              style: TextStyle(
+                                color: Get.theme.colorScheme.onSurface,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            subtitle: Text(
+                              maxLines: 1,
+                              conversation.last_message ?? "",
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Get.theme.colorScheme.onSurfaceVariant,
+                                fontSize: 14,
+                              ),
+                            ),
+                            trailing: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  DateFormat('MMMM d , HH:mm').format(
+                                    conversation.last_message_time ??
+                                        DateTime.now(),
+                                  ),
+                                  style: TextStyle(
+                                    color:
+                                        Get.theme.colorScheme.onSurfaceVariant,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                SizedBox(height: 5),
+                                if (conversation.unread_count != 0)
+                                  Container(
+                                    width: 20,
+                                    height: 20,
+                                    decoration: BoxDecoration(
+                                      color: Get.theme.colorScheme.secondary,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        (conversation.unread_count ?? 0) > 99
+                                            ? '99'
+                                            : conversation.unread_count
+                                                .toString(),
+                                        style: TextStyle(
+                                          color:
+                                              Get.theme.colorScheme.onSecondary,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            onTap: () {
+                              controller.selectConversation(
+                                controller.conversations.indexWhere(
+                                  (c) => c.id == conversation.id,
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -377,14 +512,51 @@ class ChatHeader extends StatelessWidget {
                 ),
             SizedBox(width: 16),
             Expanded(
-              child: Text(
-                conversation.conversation_name,
-                style: TextStyle(
-                  color: Get.theme.colorScheme.onPrimaryContainer,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              child:
+                  conversation.is_group_chat
+                      ? GestureDetector(
+                        onTap: () {
+                          _showParticipantsPopup(context, conversation);
+                        },
+                        child: Row(
+                          children: [
+                            Text(
+                              conversation.conversation_name,
+                              style: TextStyle(
+                                color: Get.theme.colorScheme.onPrimaryContainer,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Get.theme.colorScheme.surface,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                '${conversation.participants?.length ?? 0} участников',
+                                style: TextStyle(
+                                  color: Get.theme.colorScheme.onSurface,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                      : Text(
+                        conversation.conversation_name,
+                        style: TextStyle(
+                          color: Get.theme.colorScheme.onPrimaryContainer,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
             ),
             IconButton(
               icon: Icon(
@@ -399,6 +571,131 @@ class ChatHeader extends StatelessWidget {
         ),
       );
     });
+  }
+
+  void _showParticipantsPopup(BuildContext context, Conversation conversation) {
+    final controller = Get.find<ChatsController>();
+    final RenderBox button = context.findRenderObject() as RenderBox;
+    final position = button.localToGlobal(Offset.zero);
+    final size = button.size;
+
+    final sortedParticipants =
+        (conversation.participants ?? [])..sort((a, b) {
+          // Сначала сортируем по онлайн статусу
+          if (a.is_online != b.is_online) {
+            return b.is_online ? 1 : -1;
+          }
+          // Затем по имени пользователя
+          return a.username.compareTo(b.username);
+        });
+
+    showMenu(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        position.dx,
+        position.dy + size.height,
+        position.dx + size.width,
+        position.dy + size.height + 300,
+      ),
+      items: [
+        PopupMenuItem(
+          enabled: false,
+          child: Container(
+            constraints: BoxConstraints(maxWidth: 300, maxHeight: 250),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Участники группы',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: Get.theme.colorScheme.onSurface,
+                  ),
+                ),
+                SizedBox(height: 8),
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children:
+                          sortedParticipants
+                              .map(
+                                (participant) => Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 4.0,
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 16,
+                                        backgroundColor: controller
+                                            .getUserColor(participant.user_id),
+                                        child: Text(
+                                          participant.username[0].toUpperCase(),
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                      SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              participant.username,
+                                              style: TextStyle(
+                                                color:
+                                                    Get
+                                                        .theme
+                                                        .colorScheme
+                                                        .onSurface,
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                            Text(
+                                              participant.email,
+                                              style: TextStyle(
+                                                color:
+                                                    Get
+                                                        .theme
+                                                        .colorScheme
+                                                        .onSurfaceVariant,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      if (participant.is_online)
+                                        Container(
+                                          width: 8,
+                                          height: 8,
+                                          decoration: BoxDecoration(
+                                            color: Colors.green,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 

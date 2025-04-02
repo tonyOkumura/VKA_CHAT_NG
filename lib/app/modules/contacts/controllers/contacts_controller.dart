@@ -6,19 +6,63 @@ import 'package:vka_chat_ng/app/data/contact_model.dart';
 import 'package:vka_chat_ng/app/constants.dart';
 import 'package:vka_chat_ng/app/modules/chats/controllers/chats_controller.dart';
 import 'package:vka_chat_ng/app/services/socket_service.dart';
+import 'package:flutter/material.dart';
 
 class ContactsController extends GetxController {
   final _storage = FlutterSecureStorage();
   final _baseUrl = AppConstants.baseUrl;
   final contacts = <Contact>[].obs;
+  final filteredContacts = <Contact>[].obs;
   final isLoading = false.obs;
+  final searchQuery = ''.obs;
   final selectedContacts = <String>{}.obs;
-  final isSelectionMode = false.obs; // Режим выбора контактов
+  final isSelectionMode = false.obs;
+  final isCreatingGroup = false.obs;
+  final groupNameController = TextEditingController();
+  final groupNameFocusNode = FocusNode();
+  final groupNameError = RxnString();
+  final isCreatingDialog = false.obs;
+  final dialogNameController = TextEditingController();
+  final dialogNameFocusNode = FocusNode();
+  final dialogNameError = RxnString();
+  final selectedContact = Rxn<Contact>();
+  final userColors = <String, Color>{}.obs;
+  final userColorsList = [
+    Colors.blue.shade700,
+    Colors.red.shade700,
+    Colors.green.shade700,
+    Colors.orange.shade700,
+    Colors.purple.shade700,
+    Colors.teal.shade700,
+    Colors.pink.shade700,
+    Colors.indigo.shade700,
+    Colors.amber.shade700,
+    Colors.cyan.shade700,
+    Colors.grey.shade700,
+    Colors.lime.shade700,
+    Colors.deepPurple.shade700,
+    Colors.deepOrange.shade700,
+    Colors.blue.shade300,
+    Colors.red.shade300,
+    Colors.green.shade300,
+    Colors.orange.shade300,
+    Colors.purple.shade300,
+    Colors.teal.shade300,
+    Colors.pink.shade300,
+    Colors.indigo.shade300,
+    Colors.amber.shade300,
+    Colors.cyan.shade300,
+    Colors.grey.shade300,
+    Colors.lime.shade300,
+    Colors.deepPurple.shade300,
+    Colors.deepOrange.shade300,
+  ];
 
   @override
   void onInit() {
     super.onInit();
-    fetchContacts();
+    print('ContactsController initialized.');
+    _checkAuthAndLoadContacts();
   }
 
   @override
@@ -29,6 +73,15 @@ class ContactsController extends GetxController {
   @override
   void onClose() {
     super.onClose();
+  }
+
+  Future<void> _checkAuthAndLoadContacts() async {
+    final token = await _storage.read(key: AppKeys.token);
+    if (token != null) {
+      await fetchContacts();
+    } else {
+      print('User is not authenticated, skipping contacts fetch.');
+    }
   }
 
   // Включение режима выбора
@@ -59,24 +112,20 @@ class ContactsController extends GetxController {
     try {
       String token = await _storage.read(key: AppKeys.token) ?? '';
 
-      // Получаем первого выбранного контакта
-      final firstContactId = selectedContacts.first;
-
-      // 1. Создаем групповой чат с первым контактом
+      // Создаем групповой чат
       var createResponse = await http.post(
-        Uri.parse('$_baseUrl/conversations/check-or-create'),
+        Uri.parse('$_baseUrl/conversations/group'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
         body: jsonEncode({
-          'contact_id': firstContactId,
-          'is_group_chat': true,
           'name': groupName,
+          'participants': selectedContacts.toList(),
         }),
       );
 
-      if (createResponse.statusCode != 200) {
+      if (createResponse.statusCode != 201) {
         throw Exception('Не удалось создать групповой чат');
       }
 
@@ -86,36 +135,6 @@ class ContactsController extends GetxController {
       final _socketService = Get.find<SocketService>();
       _socketService.joinConversation(conversationId);
 
-      // 2. Добавляем остальных участников
-      for (String contactId in selectedContacts.skip(1)) {
-        var addParticipantResponse = await http.post(
-          Uri.parse('$_baseUrl/conversations/add-participant'),
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode({
-            'conversation_id': conversationId,
-            'participant_id': contactId,
-          }),
-        );
-
-        if (addParticipantResponse.statusCode != 200) {
-          print('Ошибка при добавлении участника $contactId');
-        }
-      }
-
-      // // Обновляем список чатов и переходим к созданному чату
-      // final chatsController = Get.find<ChatsController>();
-      // await chatsController.fetchConversations();
-
-      // final conversationIndex = chatsController.conversations.indexWhere(
-      //   (c) => c.id == conversationId,
-      // );
-
-      // if (conversationIndex != -1) {
-      //   chatsController.selectConversation(conversationIndex);
-      // }
       Get.snackbar('Успешно', 'Групповой чат создан');
     } catch (e) {
       print('Error creating group chat: $e');
@@ -152,6 +171,7 @@ class ContactsController extends GetxController {
 
   Future<void> fetchContacts() async {
     isLoading.value = true;
+    print('Fetching contacts...');
     String token = await _storage.read(key: AppKeys.token) ?? '';
     var response = await http.get(
       Uri.parse('$_baseUrl/contacts'),
@@ -160,6 +180,10 @@ class ContactsController extends GetxController {
     if (response.statusCode == 200) {
       List data = jsonDecode(response.body);
       contacts.value = data.map((e) => Contact.fromJson(e)).toList();
+      filterContacts(searchQuery.value);
+      print('Contacts fetched successfully.');
+    } else {
+      print('Failed to fetch contacts: ${response.body}');
     }
     isLoading.value = false;
   }
@@ -187,42 +211,25 @@ class ContactsController extends GetxController {
     try {
       String token = await _storage.read(key: AppKeys.token) ?? '';
       var response = await http.post(
-        Uri.parse('$_baseUrl/conversations/check-or-create'),
+        Uri.parse('$_baseUrl/conversations/dialog'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
-        body: jsonEncode({
-          'contact_id': contactId,
-          'is_group_chat': false,
-          'name': 'dialog',
-        }),
+        body: jsonEncode({'contact_id': contactId}),
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final _socketService = Get.find<SocketService>();
         _socketService.joinConversation(data['conversation_id']);
-        print(data);
         Get.snackbar("Успешно", "Чат создан");
-        // final chatsController = Get.find<ChatsController>();
-        // await chatsController.fetchConversations();
-
-        // final conversationIndex = chatsController.conversations.indexWhere(
-        //   (c) => c.id == data['conversation_id'],
-        // );
-        // _socketService.joinConversation(data['conversation_id']);
-        //   if (conversationIndex != -1) {
-        //     chatsController.selectConversation(conversationIndex);
-        //     _socketService.joinConversation(data['conversation_id']);
-        //   }
-        //   Get.snackbar('Успешно', 'Чат создан');
-        // } else {
-        //   Get.snackbar(
-        //     'Ошибка',
-        //     'Не удалось создать чат',
-        //     snackPosition: SnackPosition.BOTTOM,
-        //   );
+      } else {
+        Get.snackbar(
+          'Ошибка',
+          'Не удалось создать чат',
+          snackPosition: SnackPosition.BOTTOM,
+        );
       }
     } catch (e) {
       print('Error creating conversation: $e');
@@ -232,5 +239,139 @@ class ContactsController extends GetxController {
         snackPosition: SnackPosition.BOTTOM,
       );
     }
+  }
+
+  // Обновление статуса контакта
+  void updateContactStatus(String userId, bool isOnline) {
+    final index = contacts.indexWhere((contact) => contact.id == userId);
+    if (index != -1) {
+      final contact = contacts[index];
+      contacts[index] = Contact(
+        id: contact.id,
+        username: contact.username,
+        email: contact.email,
+        isOnline: isOnline,
+      );
+    }
+  }
+
+  void filterContacts(String query) {
+    if (query.isEmpty) {
+      filteredContacts.value = contacts;
+      return;
+    }
+
+    query = query.toLowerCase();
+    filteredContacts.value =
+        contacts.where((contact) {
+          return contact.username.toLowerCase().contains(query) ||
+              contact.email.toLowerCase().contains(query);
+        }).toList();
+  }
+
+  Future<void> createGroup() async {
+    if (selectedContacts.isEmpty) {
+      Get.snackbar(
+        'Ошибка',
+        'Выберите хотя бы одного участника',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+
+    if (groupNameController.text.isEmpty) {
+      groupNameError.value = 'Введите название группы';
+      return;
+    }
+
+    isCreatingGroup.value = true;
+    String token = await _storage.read(key: AppKeys.token) ?? '';
+    var response = await http.post(
+      Uri.parse('$_baseUrl/conversations/group'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'name': groupNameController.text,
+        'participants': selectedContacts.toList(),
+      }),
+    );
+
+    if (response.statusCode == 201) {
+      Get.back();
+      Get.snackbar(
+        'Успех',
+        'Группа создана',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      selectedContacts.clear();
+      isSelectionMode.value = false;
+      groupNameController.clear();
+      await fetchContacts();
+    } else {
+      Get.snackbar(
+        'Ошибка',
+        'Не удалось создать группу',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    }
+    isCreatingGroup.value = false;
+  }
+
+  Future<void> createDialog() async {
+    if (selectedContact.value == null) {
+      Get.snackbar(
+        'Ошибка',
+        'Выберите контакт',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+
+    if (dialogNameController.text.isEmpty) {
+      dialogNameError.value = 'Введите название диалога';
+      return;
+    }
+
+    isCreatingDialog.value = true;
+    String token = await _storage.read(key: AppKeys.token) ?? '';
+    var response = await http.post(
+      Uri.parse('$_baseUrl/conversations/dialog'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'name': dialogNameController.text,
+        'participant_id': selectedContact.value!.id,
+      }),
+    );
+
+    if (response.statusCode == 201) {
+      Get.back();
+      Get.snackbar(
+        'Успех',
+        'Диалог создан',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      selectedContact.value = null;
+      dialogNameController.clear();
+      await fetchContacts();
+    } else {
+      Get.snackbar(
+        'Ошибка',
+        'Не удалось создать диалог',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    }
+    isCreatingDialog.value = false;
+  }
+
+  Color getUserColor(String userId) {
+    // Генерируем цвет на основе ID пользователя
+    final hash = userId.hashCode;
+    final hue = (hash % 360).abs();
+    return HSLColor.fromAHSL(1, hue.toDouble(), 0.7, 0.5).toColor();
   }
 }

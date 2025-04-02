@@ -9,23 +9,30 @@ import 'package:vka_chat_ng/app/constants.dart';
 import 'package:vka_chat_ng/app/data/conversation_model.dart';
 import 'package:vka_chat_ng/app/data/message_model.dart';
 import 'package:vka_chat_ng/app/data/message_reads_model.dart';
+import 'package:vka_chat_ng/app/data/contact_model.dart';
 import 'package:vka_chat_ng/app/services/socket_service.dart';
+import 'dart:async';
 
 class ChatsController extends GetxController {
   final _storage = FlutterSecureStorage();
   final _baseUrl = AppConstants.baseUrl;
   final conversations = <Conversation>[].obs;
+  final filteredConversations = <Conversation>[].obs;
   final messages = <Message>[].obs;
   final messageReads = <String, List<MessageReads>>{}.obs;
   final userColors = <String, Color>{}.obs; // Хранение цветов пользователей
   var selectedConversation = Rxn<Conversation>();
   final messageController = TextEditingController();
   final messageFocusNode = FocusNode();
+  final searchController = TextEditingController();
+  final searchFocusNode = FocusNode();
   final isLoading = false.obs;
   final isLoadingMessages = false.obs;
   late SocketService _socketService;
   late String userId;
   final scrollController = ScrollController();
+  final selectedTab = 0.obs; // 0 - чаты, 1 - диалоги
+  Timer? _refreshTimer;
 
   // Список предопределенных цветов для аватаров
   final List<Color> avatarColors = [
@@ -89,6 +96,10 @@ class ChatsController extends GetxController {
         print('Reached the top of the list.');
       }
     });
+    // Запускаем периодическое обновление каждые 5 минут
+    _refreshTimer = Timer.periodic(const Duration(minutes: 5), (timer) {
+      fetchConversations();
+    });
   }
 
   @override
@@ -101,10 +112,13 @@ class ChatsController extends GetxController {
   void onClose() {
     messageController.dispose();
     messageFocusNode.dispose();
+    searchController.dispose();
+    searchFocusNode.dispose();
     scrollController.dispose();
     _socketService.socket.off('newMessage', _handleIncomingMessage);
     _socketService.socket.off('messageRead', _handleMessageRead);
     print('ChatsController disposed.');
+    _refreshTimer?.cancel(); // Отменяем таймер при закрытии контроллера
     super.onClose();
   }
 
@@ -133,8 +147,31 @@ class ChatsController extends GetxController {
     );
     if (response.statusCode == 200) {
       List data = jsonDecode(response.body);
-      conversations.value = data.map((e) => Conversation.fromJson(e)).toList();
-
+      conversations.value = await Future.wait(
+        data.map((e) async {
+          final conversation = Conversation.fromJson(e);
+          if (conversation.is_group_chat) {
+            final participantsResponse = await http.post(
+              Uri.parse('$_baseUrl/conversations/participants'),
+              headers: {
+                'Authorization': 'Bearer $token',
+                'Content-Type': 'application/json',
+              },
+              body: jsonEncode({'conversation_id': conversation.id}),
+            );
+            if (participantsResponse.statusCode == 200) {
+              final participantsData = jsonDecode(participantsResponse.body);
+              return conversation.copyWith(
+                participants:
+                    participantsData.map((p) => Contact.fromJson(p)).toList(),
+              );
+            }
+          }
+          return conversation;
+        }),
+      );
+      // Инициализируем отфильтрованный список с учетом текущей вкладки
+      filterConversations(searchController.text);
       print('Conversations fetched successfully.');
     } else {
       print('Failed to fetch conversations: ${response.body}');
@@ -188,7 +225,7 @@ class ChatsController extends GetxController {
       );
       if (conversationIndex != -1) {
         final updatedConversation = conversations[conversationIndex].copyWith(
-          unreadCount: 0,
+          unread_count: 0,
         );
         conversations[conversationIndex] = updatedConversation;
         conversations.refresh();
@@ -223,7 +260,7 @@ class ChatsController extends GetxController {
         selectedConversation.value != null) {
       print('Sending message: ${messageController.text}');
 
-      _socketService.sendMessage(
+      _socketService.sendMessageWithParams(
         selectedConversation.value!.id,
         messageController.text,
         userId,
@@ -259,7 +296,7 @@ class ChatsController extends GetxController {
         lastMessage: message.content,
         lastMessageTime: DateTime.parse(message.created_at),
         // Увеличиваем счетчик непрочитанных только если это не текущий чат
-        unreadCount:
+        unread_count:
             selectedConversation.value?.id == message.conversation_id
                 ? 0 // Если это текущий чат, сообщения считаются прочитанными
                 : (conversations[index].unread_count ?? 0) + 1,
@@ -274,6 +311,9 @@ class ChatsController extends GetxController {
         // Добавляем его в начало списка
         conversations.insert(0, conversation);
       }
+
+      // Обновляем отфильтрованный список
+      filterConversations(searchController.text);
     }
   }
 
@@ -330,7 +370,7 @@ class ChatsController extends GetxController {
                 conversations[conversationIndex].unread_count ?? 0;
             final updatedConversation = conversations[conversationIndex]
                 .copyWith(
-                  unreadCount:
+                  unread_count:
                       currentUnreadCount > 0 ? currentUnreadCount - 1 : 0,
                 );
             conversations[conversationIndex] = updatedConversation;
@@ -377,79 +417,159 @@ class ChatsController extends GetxController {
       context: context,
       position: RelativeRect.fromLTRB(
         position.dx,
-        position.dy - 100, // Показываем над сообщением
+        position.dy - 200, // Увеличиваем отступ сверху
         position.dx + size.width,
-        position.dy, // Нижняя граница совпадает с верхней границей сообщения
+        position.dy,
       ),
       items: [
         PopupMenuItem(
           enabled: false,
           child: Container(
-            constraints: BoxConstraints(maxWidth: 200),
+            constraints: BoxConstraints(
+              maxWidth: 300,
+              maxHeight: 250, // Ограничиваем высоту контейнера
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   hasReads ? 'Прочитано' : 'Не прочитано',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: Get.theme.colorScheme.onSurface,
+                  ),
                 ),
                 SizedBox(height: 8),
-                if (hasReads)
-                  ...reads
-                      .map(
-                        (read) => Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4.0),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              CircleAvatar(
-                                radius: 12,
-                                backgroundColor: getUserColor(read.contact_id),
-                                child: Text(
-                                  read.username[0],
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                  ),
-                                ),
+                Expanded(
+                  // Добавляем Expanded для прокрутки
+                  child: SingleChildScrollView(
+                    // Добавляем прокрутку
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (hasReads)
+                          ...reads.map(
+                            (read) => Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 4.0,
                               ),
-                              SizedBox(width: 8),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      read.username,
-                                      style: TextStyle(fontSize: 14),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  CircleAvatar(
+                                    radius: 12,
+                                    backgroundColor: getUserColor(
+                                      read.contact_id,
                                     ),
-                                    Text(
-                                      DateFormat(
-                                        'HH:mm dd.MM.yyyy',
-                                      ).format(DateTime.parse(read.read_at)),
+                                    child: Text(
+                                      read.username[0],
                                       style: TextStyle(
+                                        color: Colors.white,
                                         fontSize: 12,
-                                        color: Colors.grey,
                                       ),
                                     ),
-                                  ],
-                                ),
+                                  ),
+                                  SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          read.username,
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color:
+                                                Get.theme.colorScheme.onSurface,
+                                          ),
+                                        ),
+                                        Text(
+                                          DateFormat('HH:mm dd.MM.yyyy').format(
+                                            DateTime.parse(read.read_at),
+                                          ),
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color:
+                                                Get
+                                                    .theme
+                                                    .colorScheme
+                                                    .onSurfaceVariant,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ],
+                            ),
+                          )
+                        else
+                          Text(
+                            'Сообщение еще никто не прочитал',
+                            style: TextStyle(
+                              color: Get.theme.colorScheme.onSurfaceVariant,
+                              fontSize: 14,
+                            ),
                           ),
-                        ),
-                      )
-                      .toList()
-                else
-                  Text(
-                    'Сообщение еще никто не прочитал',
-                    style: TextStyle(color: Colors.grey, fontSize: 14),
+                      ],
+                    ),
                   ),
+                ),
               ],
             ),
           ),
         ),
       ],
     );
+  }
+
+  void filterConversations(String query) {
+    if (query.isEmpty) {
+      filteredConversations.value =
+          conversations.where((conversation) {
+            return selectedTab.value == 0
+                ? conversation.is_group_chat
+                : !conversation.is_group_chat;
+          }).toList();
+      return;
+    }
+
+    query = query.toLowerCase();
+    filteredConversations.value =
+        conversations.where((conversation) {
+          // Сначала проверяем тип чата
+          if (selectedTab.value == 0 && !conversation.is_group_chat)
+            return false;
+          if (selectedTab.value == 1 && conversation.is_group_chat)
+            return false;
+
+          // Затем проверяем поисковый запрос
+          if (conversation.conversation_name.toLowerCase().contains(query)) {
+            return true;
+          }
+
+          if (conversation.last_message?.toLowerCase().contains(query) ??
+              false) {
+            return true;
+          }
+
+          if (conversation.is_group_chat && conversation.participants != null) {
+            return conversation.participants!.any(
+              (participant) =>
+                  participant.username.toLowerCase().contains(query) ||
+                  participant.email.toLowerCase().contains(query),
+            );
+          }
+
+          return false;
+        }).toList();
+  }
+
+  // Добавляем метод для переключения вкладок
+  void switchTab(int index) {
+    selectedTab.value = index;
+    filterConversations(searchController.text);
   }
 }
