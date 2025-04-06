@@ -2,18 +2,15 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get/get.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:vka_chat_ng/app/constants.dart';
-import 'package:vka_chat_ng/app/modules/contacts/controllers/contacts_controller.dart';
 
 class SocketService extends GetxService {
   late IO.Socket socket;
   final _storage = FlutterSecureStorage();
   final _baseUrl = AppConstants.baseUrl;
-  late ContactsController contactsController;
 
   @override
   void onInit() {
     super.onInit();
-    contactsController = Get.find<ContactsController>();
     initSocket();
   }
 
@@ -34,21 +31,7 @@ class SocketService extends GetxService {
 
     socket.connect();
 
-    socket.onConnect((_) {
-      print('Socket connected');
-      if (userId != null) {
-        socket.emit('authenticate', userId);
-      }
-    });
-
-    socket.on('userStatusChanged', (data) {
-      print('User status changed: $data');
-      final userId = data['userId'];
-      final isOnline = data['isOnline'];
-
-      // Обновляем статус в контроллере контактов
-      contactsController.updateContactStatus(userId, isOnline);
-    });
+    socket.onConnect((_) {});
 
     socket.onDisconnect((_) => print('Socket disconnected'));
     socket.onError((error) => print('Socket error: $error'));

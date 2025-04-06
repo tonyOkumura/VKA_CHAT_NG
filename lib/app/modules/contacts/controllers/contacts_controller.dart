@@ -4,7 +4,6 @@ import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:vka_chat_ng/app/data/contact_model.dart';
 import 'package:vka_chat_ng/app/constants.dart';
-import 'package:vka_chat_ng/app/modules/chats/controllers/chats_controller.dart';
 import 'package:vka_chat_ng/app/services/socket_service.dart';
 import 'package:flutter/material.dart';
 
@@ -61,8 +60,8 @@ class ContactsController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    fetchContacts();
     print('ContactsController initialized.');
-    _checkAuthAndLoadContacts();
   }
 
   @override
@@ -73,15 +72,6 @@ class ContactsController extends GetxController {
   @override
   void onClose() {
     super.onClose();
-  }
-
-  Future<void> _checkAuthAndLoadContacts() async {
-    final token = await _storage.read(key: AppKeys.token);
-    if (token != null) {
-      await fetchContacts();
-    } else {
-      print('User is not authenticated, skipping contacts fetch.');
-    }
   }
 
   // Включение режима выбора
@@ -317,55 +307,6 @@ class ContactsController extends GetxController {
       );
     }
     isCreatingGroup.value = false;
-  }
-
-  Future<void> createDialog() async {
-    if (selectedContact.value == null) {
-      Get.snackbar(
-        'Ошибка',
-        'Выберите контакт',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-      return;
-    }
-
-    if (dialogNameController.text.isEmpty) {
-      dialogNameError.value = 'Введите название диалога';
-      return;
-    }
-
-    isCreatingDialog.value = true;
-    String token = await _storage.read(key: AppKeys.token) ?? '';
-    var response = await http.post(
-      Uri.parse('$_baseUrl/conversations/dialog'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'name': dialogNameController.text,
-        'participant_id': selectedContact.value!.id,
-      }),
-    );
-
-    if (response.statusCode == 201) {
-      Get.back();
-      Get.snackbar(
-        'Успех',
-        'Диалог создан',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-      selectedContact.value = null;
-      dialogNameController.clear();
-      await fetchContacts();
-    } else {
-      Get.snackbar(
-        'Ошибка',
-        'Не удалось создать диалог',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    }
-    isCreatingDialog.value = false;
   }
 
   Color getUserColor(String userId) {

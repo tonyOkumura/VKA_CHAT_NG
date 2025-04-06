@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:vka_chat_ng/app/services/socket_service.dart';
 import 'package:vka_chat_ng/app/widgets/main_layout.dart';
 import '../controllers/contacts_controller.dart';
 
@@ -194,32 +195,9 @@ class ContactsView extends GetView<ContactsController> {
                                   }
                                 } else {
                                   controller.selectedContact.value = contact;
-                                  Get.dialog(
-                                    AlertDialog(
-                                      title: const Text('Создать диалог'),
-                                      content: TextField(
-                                        controller:
-                                            controller.dialogNameController,
-                                        focusNode:
-                                            controller.dialogNameFocusNode,
-                                        decoration: InputDecoration(
-                                          labelText: 'Название диалога',
-                                          errorText:
-                                              controller.dialogNameError.value,
-                                        ),
-                                      ),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () => Get.back(),
-                                          child: const Text('Отмена'),
-                                        ),
-                                        TextButton(
-                                          onPressed:
-                                              () => controller.createDialog(),
-                                          child: const Text('Создать'),
-                                        ),
-                                      ],
-                                    ),
+                                  controller.chechkOrCreateConversation(
+                                    contactId: contact.id,
+                                    contactEmail: contact.email,
                                   );
                                 }
                               },
