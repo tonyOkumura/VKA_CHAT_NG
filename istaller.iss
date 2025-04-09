@@ -1,5 +1,5 @@
 #define MyAppName "VKA Chat"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "2.0.6"
 #define MyAppPublisher "NexusXTeam"
 #define MyAppExeName "vka_chat_ng.exe"
 
@@ -26,8 +26,9 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [Files]
 Source: "C:\Users\Tokumura\VsCodeProgs\VKA_CHAT_NG\build\windows\x64\runner\Release\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "C:\Users\Tokumura\VsCodeProgs\VKA_CHAT_NG\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "C:\Users\Tokumura\VsCodeProgs\VKA_CHAT_NG\assets\icons\logo_100.ico"; DestDir: "{app}"
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\logo_100.ico"
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\logo_100.ico"; Tasks: desktopicon

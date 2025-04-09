@@ -29,8 +29,10 @@ environment:
 # versions available, run `flutter pub outdated`.
 dependencies:
   cupertino_icons: ^1.0.8
+  dio: ^5.4.0
   flutter:
     sdk: flutter
+  flutter_launcher_icons: ^0.14.3
   flutter_secure_storage: ^9.0.0
   get: ^4.6.6
   google_fonts: ^6.2.1
@@ -39,14 +41,13 @@ dependencies:
   jwt_decode: ^0.3.1
   jwt_decoder: ^2.0.1
   lottie: ^3.3.1
+  shared_preferences: ^2.2.2
   shimmer: ^3.0.0
+  sidebarx: ^0.17.1
   simple_animations: ^5.1.0
   simple_progress_indicators: ^0.2.0
   socket_io_client: ^2.0.3+1
   supercharged: ^2.1.1
-  shared_preferences: ^2.2.2
-  dio: ^5.4.0
-  sidebarx: ^0.17.1
 
 dev_dependencies:
   flutter_lints: ^5.0.0

@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
+set(APPLICATION_ICON_RESOURCE_WINDOWS "${CMAKE_CURRENT_SOURCE_DIR}/runner/resources/app_icon.ico")
 project(runner LANGUAGES CXX)
 
 # Define the application target. To change its name, change BINARY_NAME in the
