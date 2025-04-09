@@ -290,11 +290,7 @@ class ContactsController extends GetxController {
 
     if (response.statusCode == 201) {
       Get.back();
-      Get.snackbar(
-        'Успех',
-        'Группа создана',
-        snackPosition: SnackPosition.BOTTOM,
-      );
+      Get.snackbar('Успех', 'Группа создана', snackPosition: SnackPosition.TOP);
       selectedContacts.clear();
       isSelectionMode.value = false;
       groupNameController.clear();
@@ -303,7 +299,7 @@ class ContactsController extends GetxController {
       Get.snackbar(
         'Ошибка',
         'Не удалось создать группу',
-        snackPosition: SnackPosition.BOTTOM,
+        snackPosition: SnackPosition.TOP,
       );
     }
     isCreatingGroup.value = false;

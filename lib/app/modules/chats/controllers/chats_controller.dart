@@ -21,6 +21,9 @@ class ChatsController extends GetxController {
   final messages = <Message>[].obs;
   final messageReads = <String, List<MessageReads>>{}.obs;
   final userColors = <String, Color>{}.obs; // Хранение цветов пользователей
+  final onlineUsers =
+      <String, bool>{}
+          .obs; // Добавляем отслеживание онлайн статуса пользователей
   var selectedConversation = Rxn<Conversation>();
   final messageController = TextEditingController();
   final messageFocusNode = FocusNode();
@@ -83,6 +86,8 @@ class ChatsController extends GetxController {
     _socketService = Get.find<SocketService>();
     _socketService.socket.on('newMessage', _handleIncomingMessage);
     _socketService.socket.on('messageRead', _handleMessageRead);
+    _socketService.socket.on('authenticate', _handleAuthentication);
+    _socketService.socket.on('userStatusChanged', _handleUserStatusChanged);
     _initializeUserId();
     fetchConversations().then((_) {
       // После получения списка чатов подключаемся ко всем
@@ -125,6 +130,11 @@ class ChatsController extends GetxController {
   Future<void> _initializeUserId() async {
     userId = await _storage.read(key: AppKeys.userId) ?? '';
     print('User ID: $userId');
+
+    // Отправляем событие аутентификации для текущего пользователя
+    if (userId.isNotEmpty) {
+      _socketService.socket.emit('authenticate', userId);
+    }
   }
 
   void selectConversation(int? index) {
@@ -571,5 +581,39 @@ class ChatsController extends GetxController {
   void switchTab(int index) {
     selectedTab.value = index;
     filterConversations(searchController.text);
+  }
+
+  void _handleAuthentication(dynamic data) async {
+    try {
+      final userId = data['userId'] as String;
+      print('Пользователь $userId аутентифицирован');
+
+      // Обновляем статус пользователя на онлайн
+      onlineUsers[userId] = true;
+
+      // Уведомляем всех о том, что пользователь онлайн
+      _socketService.socket.emit('userStatusChanged', {
+        'userId': userId,
+        'isOnline': true,
+      });
+
+      print('Статус пользователя $userId обновлен на онлайн');
+    } catch (error) {
+      print('Ошибка при аутентификации пользователя: $error');
+    }
+  }
+
+  void _handleUserStatusChanged(dynamic data) {
+    try {
+      final userId = data['userId'] as String;
+      final isOnline = data['isOnline'] as bool;
+
+      onlineUsers[userId] = isOnline;
+      print(
+        'Статус пользователя $userId изменен на ${isOnline ? "онлайн" : "оффлайн"}',
+      );
+    } catch (error) {
+      print('Ошибка при обработке изменения статуса пользователя: $error');
+    }
   }
 }
