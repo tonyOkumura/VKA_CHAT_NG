@@ -27,7 +27,7 @@ class LoginView extends GetView<LoginController> {
                     TextField(
                       controller: controller.emailController,
                       decoration: InputDecoration(
-                        labelText: 'Email',
+                        labelText: 'email'.tr,
                         border: OutlineInputBorder(),
                       ),
                     ),
@@ -36,7 +36,7 @@ class LoginView extends GetView<LoginController> {
                       controller: controller.passwordController,
                       obscureText: true,
                       decoration: InputDecoration(
-                        labelText: 'Password',
+                        labelText: 'password'.tr,
                         border: OutlineInputBorder(),
                       ),
                     ),
@@ -50,7 +50,7 @@ class LoginView extends GetView<LoginController> {
                                 onPressed: () {
                                   controller.login();
                                 },
-                                child: Text('Login'),
+                                child: Text('login'.tr),
                                 style: ElevatedButton.styleFrom(
                                   padding: EdgeInsets.symmetric(
                                     horizontal: 100,
@@ -74,7 +74,9 @@ class LoginView extends GetView<LoginController> {
                       onPressed: () {
                         Get.toNamed(Routes.REGISTER);
                       },
-                      child: Text('Don\'t have an account? Register'),
+                      child: Text(
+                        'dont_have_account'.tr + "   " + 'register'.tr,
+                      ),
                     ),
                   ],
                 ),

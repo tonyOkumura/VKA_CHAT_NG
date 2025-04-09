@@ -45,7 +45,7 @@ class RegisterView extends GetView<RegisterController> {
                       controller: controller.passwordController,
                       obscureText: true,
                       decoration: InputDecoration(
-                        labelText: 'Password',
+                        labelText: 'password'.tr,
                         border: OutlineInputBorder(),
                       ),
                     ),
@@ -58,7 +58,7 @@ class RegisterView extends GetView<RegisterController> {
                                 onPressed: () {
                                   controller.register();
                                 },
-                                child: Text('Register'),
+                                child: Text('register'.tr),
                                 style: ElevatedButton.styleFrom(
                                   padding: EdgeInsets.symmetric(
                                     horizontal: 100,
@@ -75,7 +75,7 @@ class RegisterView extends GetView<RegisterController> {
                       onPressed: () {
                         Get.back();
                       },
-                      child: Text('Already have an account? Login'),
+                      child: Text('dont_have_account'.tr + "  " + 'login'.tr),
                     ),
                   ],
                 ),
