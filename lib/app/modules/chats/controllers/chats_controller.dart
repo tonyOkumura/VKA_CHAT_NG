@@ -144,7 +144,10 @@ class ChatsController extends GetxController {
       return;
     }
     selectedConversation.value = conversations[index];
-    fetchMessages();
+    fetchMessages().then((_) {
+      // После загрузки сообщений отмечаем их как прочитанные
+      _markAllMessagesAsRead();
+    });
   }
 
   Future<void> fetchConversations() async {
@@ -180,6 +183,20 @@ class ChatsController extends GetxController {
           return conversation;
         }),
       );
+
+      // Сортируем чаты по времени последнего сообщения
+      conversations.sort((a, b) {
+        // Если у обоих чатов есть последнее сообщение
+        if (a.last_message_time != null && b.last_message_time != null) {
+          return b.last_message_time!.compareTo(a.last_message_time!);
+        }
+        // Если только у одного есть последнее сообщение, он идет первым
+        if (a.last_message_time != null) return -1;
+        if (b.last_message_time != null) return 1;
+        // Если у обоих нет последнего сообщения, сортируем по ID
+        return b.id.compareTo(a.id);
+      });
+
       // Инициализируем отфильтрованный список с учетом текущей вкладки
       filterConversations(searchController.text);
       print('Conversations fetched successfully.');
@@ -189,7 +206,7 @@ class ChatsController extends GetxController {
     isLoading.value = false;
   }
 
-  void fetchMessages() async {
+  Future<void> fetchMessages() async {
     isLoadingMessages.value = true;
     messages.clear();
     print('Fetching messages...');
@@ -211,9 +228,6 @@ class ChatsController extends GetxController {
         }),
       );
       print('Messages fetched successfully.');
-
-      // Отправляем событие о прочтении всех сообщений
-      _markAllMessagesAsRead();
     } else {
       print('Failed to fetch messages: ${response.body}');
     }
@@ -543,38 +557,51 @@ class ChatsController extends GetxController {
                 ? conversation.is_group_chat
                 : !conversation.is_group_chat;
           }).toList();
-      return;
+    } else {
+      query = query.toLowerCase();
+      filteredConversations.value =
+          conversations.where((conversation) {
+            // Сначала проверяем тип чата
+            if (selectedTab.value == 0 && !conversation.is_group_chat)
+              return false;
+            if (selectedTab.value == 1 && conversation.is_group_chat)
+              return false;
+
+            // Затем проверяем поисковый запрос
+            if (conversation.conversation_name.toLowerCase().contains(query)) {
+              return true;
+            }
+
+            if (conversation.last_message?.toLowerCase().contains(query) ??
+                false) {
+              return true;
+            }
+
+            if (conversation.is_group_chat &&
+                conversation.participants != null) {
+              return conversation.participants!.any(
+                (participant) =>
+                    participant.username.toLowerCase().contains(query) ||
+                    participant.email.toLowerCase().contains(query),
+              );
+            }
+
+            return false;
+          }).toList();
     }
 
-    query = query.toLowerCase();
-    filteredConversations.value =
-        conversations.where((conversation) {
-          // Сначала проверяем тип чата
-          if (selectedTab.value == 0 && !conversation.is_group_chat)
-            return false;
-          if (selectedTab.value == 1 && conversation.is_group_chat)
-            return false;
-
-          // Затем проверяем поисковый запрос
-          if (conversation.conversation_name.toLowerCase().contains(query)) {
-            return true;
-          }
-
-          if (conversation.last_message?.toLowerCase().contains(query) ??
-              false) {
-            return true;
-          }
-
-          if (conversation.is_group_chat && conversation.participants != null) {
-            return conversation.participants!.any(
-              (participant) =>
-                  participant.username.toLowerCase().contains(query) ||
-                  participant.email.toLowerCase().contains(query),
-            );
-          }
-
-          return false;
-        }).toList();
+    // Сортируем отфильтрованные чаты по времени последнего сообщения
+    filteredConversations.sort((a, b) {
+      // Если у обоих чатов есть последнее сообщение
+      if (a.last_message_time != null && b.last_message_time != null) {
+        return b.last_message_time!.compareTo(a.last_message_time!);
+      }
+      // Если только у одного есть последнее сообщение, он идет первым
+      if (a.last_message_time != null) return -1;
+      if (b.last_message_time != null) return 1;
+      // Если у обоих нет последнего сообщения, сортируем по ID
+      return b.id.compareTo(a.id);
+    });
   }
 
   // Добавляем метод для переключения вкладок
