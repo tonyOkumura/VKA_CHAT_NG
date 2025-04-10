@@ -59,9 +59,6 @@ class LoginController extends GetxController {
         log('User ID: $userId');
         await _storage.write(key: AppKeys.userId, value: userId);
 
-        if (!Get.isRegistered<SocketService>()) {
-          await Get.putAsync(() => SocketService().init());
-        }
         Get.offAllNamed(Routes.CHATS);
       } else {
         Get.snackbar('Error', data['message']);

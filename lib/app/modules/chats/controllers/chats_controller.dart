@@ -12,6 +12,7 @@ import 'package:vka_chat_ng/app/data/message_reads_model.dart';
 import 'package:vka_chat_ng/app/data/contact_model.dart';
 import 'package:vka_chat_ng/app/services/socket_service.dart';
 import 'dart:async';
+import 'package:vka_chat_ng/app/services/notification_service.dart';
 
 class ChatsController extends GetxController {
   final _storage = FlutterSecureStorage();
@@ -84,10 +85,6 @@ class ChatsController extends GetxController {
     super.onInit();
     print('ChatsController initialized.');
     _socketService = Get.find<SocketService>();
-    _socketService.socket.on('newMessage', handleIncomingMessage);
-    _socketService.socket.on('messageRead', _handleMessageRead);
-    _socketService.socket.on('authenticate', _handleAuthentication);
-    _socketService.socket.on('userStatusChanged', _handleUserStatusChanged);
     _initializeUserId();
     fetchConversations().then((_) {
       // После получения списка чатов подключаемся ко всем
@@ -105,13 +102,6 @@ class ChatsController extends GetxController {
     _refreshTimer = Timer.periodic(const Duration(minutes: 5), (timer) {
       fetchConversations();
     });
-
-    // Подписываемся на события обновления
-    ever(conversations, (_) {
-      if (Get.isRegistered<GetxController>()) {
-        Get.find<GetxController>().update(['new_message']);
-      }
-    });
   }
 
   @override
@@ -128,7 +118,7 @@ class ChatsController extends GetxController {
     searchFocusNode.dispose();
     scrollController.dispose();
     _socketService.socket.off('newMessage', handleIncomingMessage);
-    _socketService.socket.off('messageRead', _handleMessageRead);
+    _socketService.socket.off('messageRead', handleMessageRead);
     print('ChatsController disposed.');
     _refreshTimer?.cancel(); // Отменяем таймер при закрытии контроллера
     super.onClose();
@@ -146,11 +136,30 @@ class ChatsController extends GetxController {
 
   void selectConversation(int? index) {
     if (index == null) {
+      // Уведомляем о закрытии текущего чата
+      if (selectedConversation.value != null) {
+        Get.find<NotificationService>().setChatOpen(
+          selectedConversation.value!.id,
+          false,
+        );
+      }
       selectedConversation.value = null;
       messages.clear();
       return;
     }
+    // Уведомляем о закрытии предыдущего чата
+    if (selectedConversation.value != null) {
+      Get.find<NotificationService>().setChatOpen(
+        selectedConversation.value!.id,
+        false,
+      );
+    }
     selectedConversation.value = conversations[index];
+    // Уведомляем об открытии нового чата
+    Get.find<NotificationService>().setChatOpen(
+      selectedConversation.value!.id,
+      true,
+    );
     fetchMessages().then((_) {
       // После загрузки сообщений отмечаем их как прочитанные
       _markAllMessagesAsRead();
@@ -309,6 +318,7 @@ class ChatsController extends GetxController {
   void handleIncomingMessage(dynamic data) {
     print('New message received: $data');
     final message = Message.fromJson(data);
+
     if (selectedConversation.value != null &&
         message.conversation_id == selectedConversation.value!.id) {
       // Устанавливаем is_unread в зависимости от количества прочитавших
@@ -362,7 +372,7 @@ class ChatsController extends GetxController {
     }
   }
 
-  void _handleMessageRead(dynamic data) {
+  void handleMessageRead(dynamic data) {
     print('Message read event received: $data');
     final messageId = data['message_id'];
     final userId = data['user_id'];
@@ -621,7 +631,7 @@ class ChatsController extends GetxController {
     filterConversations(searchController.text);
   }
 
-  void _handleAuthentication(dynamic data) async {
+  void handleAuthentication(dynamic data) async {
     try {
       final userId = data['userId'] as String;
       print('Пользователь $userId аутентифицирован');
@@ -641,7 +651,7 @@ class ChatsController extends GetxController {
     }
   }
 
-  void _handleUserStatusChanged(dynamic data) {
+  void handleUserStatusChanged(dynamic data) {
     try {
       final userId = data['userId'] as String;
       final isOnline = data['isOnline'] as bool;

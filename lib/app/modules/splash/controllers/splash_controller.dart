@@ -13,8 +13,11 @@ class SplashController extends GetxController {
     Future.delayed(const Duration(seconds: 2), () async {
       final token = await _storage.read(key: 'token');
       if (token != null && !JwtDecoder.isExpired(token)) {
-        if (!Get.isRegistered<SocketService>()) {
-          await Get.putAsync(() => SocketService().init());
+        if (Get.isRegistered<SocketService>()) {
+          final socketService = Get.find<SocketService>();
+          if (!socketService.isInitialized) {
+            await socketService.initializeSocket();
+          }
         }
         Get.offAllNamed(Routes.CHATS);
       } else {

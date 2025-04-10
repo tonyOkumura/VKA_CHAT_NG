@@ -6,6 +6,10 @@ import 'package:vka_chat_ng/app/controllers/language_controller.dart';
 import 'package:vka_chat_ng/app/modules/settings/controllers/settings_controller.dart';
 import 'package:vka_chat_ng/app/services/socket_service.dart';
 import 'package:vka_chat_ng/app/services/notification_service.dart';
+import 'package:window_manager/window_manager.dart';
+import 'package:vka_chat_ng/theme.dart';
+import 'package:vka_chat_ng/app/translations/app_translations.dart';
+import 'package:vka_chat_ng/app/routes/app_pages.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,15 +18,12 @@ Future<void> main() async {
   Get.put(LanguageController());
   Get.put(SettingsController());
 
-  // Инициализация сервисов
-  final notificationService = NotificationService();
-  await notificationService.init();
-  Get.put(notificationService);
+  // Инициализируем сервисы
+  final notificationService = Get.put(NotificationService());
+  notificationService.onInit();
 
-  await Get.putAsync<SocketService>(() async {
-    final service = SocketService();
-    return await service.init();
-  });
+  // Регистрируем SocketService как синглтон
+  Get.put(SocketService(), permanent: true);
 
   // Загрузка сохраненной темы
   final storage = FlutterSecureStorage();
@@ -30,5 +31,32 @@ Future<void> main() async {
   final isDarkMode = savedTheme == 'true';
   Get.changeThemeMode(isDarkMode ? ThemeMode.dark : ThemeMode.light);
 
-  runApp(MyApp());
+  // Инициализируем window_manager
+  await windowManager.ensureInitialized();
+
+  // Настраиваем параметры окна
+  await windowManager.waitUntilReadyToShow().then((_) async {
+    await windowManager.setTitle('VKA Chat');
+    await windowManager.setMinimumSize(const Size(800, 600));
+    await windowManager.center();
+    await windowManager.show();
+  });
+
+  runApp(
+    GetMaterialApp(
+      title: "VKA Chat",
+      theme: AppTheme.lightTheme(AppTheme.lightColorScheme),
+      darkTheme: AppTheme.darkTheme(AppTheme.darkColorScheme),
+      translations: AppTranslations(),
+      locale: Get.find<LanguageController>().locale.value,
+      fallbackLocale: const Locale('ru', 'RU'),
+      themeMode:
+          Get.find<SettingsController>().isDarkMode.value
+              ? ThemeMode.dark
+              : ThemeMode.light,
+      initialRoute: AppPages.INITIAL,
+      getPages: AppPages.routes,
+      debugShowCheckedModeBanner: false,
+    ),
+  );
 }

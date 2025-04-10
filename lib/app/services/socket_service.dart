@@ -4,6 +4,8 @@ import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:vka_chat_ng/app/constants.dart';
 import 'package:vka_chat_ng/app/services/notification_service.dart';
 import 'package:vka_chat_ng/app/data/message_model.dart';
+import 'package:vka_chat_ng/app/data/conversation_model.dart';
+import 'package:vka_chat_ng/app/modules/chats/controllers/chats_controller.dart';
 
 class SocketService extends GetxService {
   late IO.Socket socket;
@@ -11,35 +13,49 @@ class SocketService extends GetxService {
   final _baseUrl = AppConstants.baseUrl;
   final NotificationService _notificationService =
       Get.find<NotificationService>();
+  bool isInitialized = false;
 
   @override
   void onInit() {
     super.onInit();
-    initSocket();
+    initializeSocket();
   }
 
-  Future<SocketService> init() async {
-    await initSocket();
-    return this;
-  }
+  Future<void> initializeSocket() async {
+    if (isInitialized) return;
 
-  Future<void> initSocket() async {
-    String? token = await _storage.read(key: AppKeys.token);
-    String? userId = await _storage.read(key: AppKeys.userId);
+    String token = await _storage.read(key: AppKeys.token) ?? '';
+    if (token.isEmpty) {
+      print('No token found, cannot initialize socket');
+      return;
+    }
 
-    socket = IO.io(_baseUrl, <String, dynamic>{
-      'transports': ['websocket'],
-      'autoConnect': false,
-      'extraHeaders': {'Authorization': 'Bearer $token'},
+    socket = IO.io(
+      _baseUrl,
+      IO.OptionBuilder().setTransports(['websocket']).setExtraHeaders({
+        'Authorization': 'Bearer $token',
+      }).build(),
+    );
+
+    socket.onConnect((_) {
+      print('Socket connected');
+    });
+
+    socket.on('newMessage', _handleMessage);
+    socket.on('messageRead', _handleMessageRead);
+    socket.on('authenticate', _handleAuthentication);
+    socket.on('userStatusChanged', _handleUserStatusChanged);
+
+    socket.onDisconnect((_) {
+      print('Socket disconnected');
+    });
+
+    socket.onError((error) {
+      print('Socket error: $error');
     });
 
     socket.connect();
-
-    socket.onConnect((_) {});
-
-    socket.on('newMessage', _handleMessage);
-    socket.onDisconnect((_) => print('Socket disconnected'));
-    socket.onError((error) => print('Socket error: $error'));
+    isInitialized = true;
   }
 
   void joinConversation(String conversationId) {
@@ -65,21 +81,68 @@ class SocketService extends GetxService {
   void _handleMessage(dynamic data) {
     try {
       final message = Message.fromJson(data);
-      final conversationName = data['conversation_name'] as String;
 
-      // Показываем уведомление
-      _notificationService.showMessageNotification(message, conversationName);
+      // Проверяем, открыт ли чат, только если ChatsController существует
+      bool isChatOpen = false;
+      if (Get.isRegistered<ChatsController>()) {
+        isChatOpen = Get.find<ChatsController>().isChatOpen(
+          message.conversation_id,
+        );
+      }
 
-      // Отправляем событие о новом сообщении
-      Get.find<GetxController>().update(['new_message']);
+      // Показываем уведомление, если чат не открыт
+      if (!isChatOpen) {
+        String senderName = message.sender_username;
+
+        // Если ChatsController существует, пытаемся получить название группы
+        if (Get.isRegistered<ChatsController>()) {
+          final chatsController = Get.find<ChatsController>();
+          try {
+            final conversation = chatsController.conversations.firstWhere(
+              (c) => c.id == message.conversation_id,
+            );
+            if (conversation.is_group_chat) {
+              senderName = conversation.conversation_name;
+            }
+          } catch (e) {
+            print('Error getting conversation info: $e');
+          }
+        }
+
+        _notificationService.showMessageNotification(message, senderName);
+      }
+
+      // Передаем сообщение в контроллер чатов, если он существует
+      if (Get.isRegistered<ChatsController>()) {
+        Get.find<ChatsController>().handleIncomingMessage(data);
+      }
     } catch (e) {
       print('Error handling message: $e');
+    }
+  }
+
+  void _handleMessageRead(dynamic data) {
+    if (Get.isRegistered<ChatsController>()) {
+      Get.find<ChatsController>().handleMessageRead(data);
+    }
+  }
+
+  void _handleAuthentication(dynamic data) {
+    if (Get.isRegistered<ChatsController>()) {
+      Get.find<ChatsController>().handleAuthentication(data);
+    }
+  }
+
+  void _handleUserStatusChanged(dynamic data) {
+    if (Get.isRegistered<ChatsController>()) {
+      Get.find<ChatsController>().handleUserStatusChanged(data);
     }
   }
 
   @override
   void onClose() {
     socket.disconnect();
+    isInitialized = false;
     super.onClose();
   }
 }
