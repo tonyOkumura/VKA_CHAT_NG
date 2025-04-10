@@ -5,6 +5,7 @@ import 'package:vka_chat_ng/app/app.dart';
 import 'package:vka_chat_ng/app/controllers/language_controller.dart';
 import 'package:vka_chat_ng/app/modules/settings/controllers/settings_controller.dart';
 import 'package:vka_chat_ng/app/services/socket_service.dart';
+import 'package:vka_chat_ng/app/services/notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -12,6 +13,12 @@ Future<void> main() async {
   // Инициализация контроллеров
   Get.put(LanguageController());
   Get.put(SettingsController());
+
+  // Инициализация сервисов
+  final notificationService = NotificationService();
+  await notificationService.init();
+  Get.put(notificationService);
+
   await Get.putAsync<SocketService>(() async {
     final service = SocketService();
     return await service.init();

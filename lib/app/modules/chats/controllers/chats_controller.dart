@@ -84,7 +84,7 @@ class ChatsController extends GetxController {
     super.onInit();
     print('ChatsController initialized.');
     _socketService = Get.find<SocketService>();
-    _socketService.socket.on('newMessage', _handleIncomingMessage);
+    _socketService.socket.on('newMessage', handleIncomingMessage);
     _socketService.socket.on('messageRead', _handleMessageRead);
     _socketService.socket.on('authenticate', _handleAuthentication);
     _socketService.socket.on('userStatusChanged', _handleUserStatusChanged);
@@ -105,6 +105,13 @@ class ChatsController extends GetxController {
     _refreshTimer = Timer.periodic(const Duration(minutes: 5), (timer) {
       fetchConversations();
     });
+
+    // Подписываемся на события обновления
+    ever(conversations, (_) {
+      if (Get.isRegistered<GetxController>()) {
+        Get.find<GetxController>().update(['new_message']);
+      }
+    });
   }
 
   @override
@@ -120,7 +127,7 @@ class ChatsController extends GetxController {
     searchController.dispose();
     searchFocusNode.dispose();
     scrollController.dispose();
-    _socketService.socket.off('newMessage', _handleIncomingMessage);
+    _socketService.socket.off('newMessage', handleIncomingMessage);
     _socketService.socket.off('messageRead', _handleMessageRead);
     print('ChatsController disposed.');
     _refreshTimer?.cancel(); // Отменяем таймер при закрытии контроллера
@@ -148,6 +155,10 @@ class ChatsController extends GetxController {
       // После загрузки сообщений отмечаем их как прочитанные
       _markAllMessagesAsRead();
     });
+  }
+
+  bool isChatOpen(String conversationId) {
+    return selectedConversation.value?.id == conversationId;
   }
 
   Future<void> fetchConversations() async {
@@ -295,7 +306,7 @@ class ChatsController extends GetxController {
     }
   }
 
-  void _handleIncomingMessage(dynamic data) {
+  void handleIncomingMessage(dynamic data) {
     print('New message received: $data');
     final message = Message.fromJson(data);
     if (selectedConversation.value != null &&
