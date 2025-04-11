@@ -22,7 +22,10 @@ class SocketService extends GetxService {
   }
 
   Future<void> initializeSocket() async {
-    if (isInitialized) return;
+    if (isInitialized) {
+      await reconnectSocket();
+      return;
+    }
 
     String token = await _storage.read(key: AppKeys.token) ?? '';
     if (token.isEmpty) {
@@ -56,6 +59,27 @@ class SocketService extends GetxService {
 
     socket.connect();
     isInitialized = true;
+  }
+
+  Future<void> reconnectSocket() async {
+    if (socket.connected) {
+      await socket.disconnect();
+    }
+
+    String token = await _storage.read(key: AppKeys.token) ?? '';
+    if (token.isEmpty) {
+      print('No token found, cannot reconnect socket');
+      return;
+    }
+
+    // Обновляем заголовки авторизации
+    if (socket.io.options != null) {
+      socket.io.options!['extraHeaders'] = {'Authorization': 'Bearer $token'};
+    }
+
+    // Переподключаемся
+    await socket.connect();
+    print('Socket reconnected with new token');
   }
 
   void joinConversation(String conversationId) {
