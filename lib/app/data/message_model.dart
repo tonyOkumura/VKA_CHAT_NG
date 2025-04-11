@@ -1,3 +1,5 @@
+import 'file_model.dart';
+
 class Message {
   final String id;
   final String conversation_id;
@@ -8,6 +10,7 @@ class Message {
   final String sender_username;
   final bool? is_unread; // Сделали nullable
   final List<ReadByUser>? read_by_users; // Сделали nullable
+  final List<FileModel>? files;
 
   Message({
     required this.id,
@@ -18,6 +21,7 @@ class Message {
     required this.created_at,
     this.is_unread, // Убрали required
     this.read_by_users, // Убрали required
+    this.files,
   });
 
   factory Message.fromJson(Map<String, dynamic> json) {
@@ -35,6 +39,12 @@ class Message {
                   .map((user) => ReadByUser.fromJson(user))
                   .toList()
               : null, // Проверяем наличие поля
+      files:
+          json['files'] != null
+              ? (json['files'] as List)
+                  .map((file) => FileModel.fromJson(file))
+                  .toList()
+              : null,
     );
   }
 
@@ -47,6 +57,7 @@ class Message {
     String? created_at,
     bool? is_unread,
     List<ReadByUser>? read_by_users,
+    List<FileModel>? files,
   }) {
     return Message(
       id: id ?? this.id,
@@ -57,6 +68,7 @@ class Message {
       created_at: created_at ?? this.created_at,
       is_unread: is_unread ?? this.is_unread,
       read_by_users: read_by_users ?? this.read_by_users,
+      files: files ?? this.files,
     );
   }
 }

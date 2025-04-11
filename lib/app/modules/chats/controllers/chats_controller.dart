@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -11,6 +12,8 @@ import 'package:vka_chat_ng/app/data/message_model.dart';
 import 'package:vka_chat_ng/app/data/message_reads_model.dart';
 import 'package:vka_chat_ng/app/data/contact_model.dart';
 import 'package:vka_chat_ng/app/services/socket_service.dart';
+import 'package:vka_chat_ng/app/services/file_service.dart';
+import 'package:vka_chat_ng/app/data/file_model.dart';
 import 'dart:async';
 import 'package:vka_chat_ng/app/services/notification_service.dart';
 
@@ -25,6 +28,8 @@ class ChatsController extends GetxController {
   final onlineUsers =
       <String, bool>{}
           .obs; // Добавляем отслеживание онлайн статуса пользователей
+  final downloadingFiles = <String>{}.obs;
+  final downloadedFiles = <String>{}.obs;
   var selectedConversation = Rxn<Conversation>();
   final messageController = TextEditingController();
   final messageFocusNode = FocusNode();
@@ -37,6 +42,7 @@ class ChatsController extends GetxController {
   final scrollController = ScrollController();
   final selectedTab = 0.obs; // 0 - чаты, 1 - диалоги
   Timer? _refreshTimer;
+  bool _isUploading = false;
 
   // Список предопределенных цветов для аватаров
   final List<Color> avatarColors = [
@@ -229,29 +235,80 @@ class ChatsController extends GetxController {
   Future<void> fetchMessages() async {
     isLoadingMessages.value = true;
     messages.clear();
-    print('Fetching messages...');
+    print('=== Starting fetchMessages ===');
+    print('Current conversation ID: ${selectedConversation.value!.id}');
+
     String token = await _storage.read(key: AppKeys.token) ?? '';
+    print('Token found: ${token.isNotEmpty}');
+
+    print(
+      'Sending GET request to: $_baseUrl/messages/${selectedConversation.value!.id}',
+    );
     var response = await http.get(
       Uri.parse('$_baseUrl/messages/${selectedConversation.value!.id}'),
       headers: {'Authorization': 'Bearer $token'},
     );
+    print('Response status code: ${response.statusCode}');
+    print('Response headers: ${response.headers}');
+
     if (response.statusCode == 200) {
+      print('Successfully received messages');
+      print('Response body length: ${response.body.length} bytes');
+
       List data = jsonDecode(response.body);
+      print('Decoded JSON array length: ${data.length} messages');
+
       messages.addAll(
         data.map((e) {
-          final message = Message.fromJson(e);
+          print('Processing message: ${e['id'] ?? 'ID not found'}');
+          // Проверяем, есть ли вложенный объект message
+          final messageData =
+              e is Map && e.containsKey('message') ? e['message'] : e;
+          print('Message data structure: ${messageData.keys.join(', ')}');
+
+          final message = Message.fromJson(messageData);
+          print('Created Message object:');
+          print('- ID: ${message.id}');
+          print('- Sender: ${message.sender_username}');
+          print('- Content length: ${message.content.length} chars');
+          print('- Has files: ${message.files?.isNotEmpty ?? false}');
+          if (message.files != null && message.files!.isNotEmpty) {
+            print('Files in message:');
+            for (var file in message.files!) {
+              print('  - File: ${file.fileName}');
+              print('    Type: ${file.fileType}');
+              print('    Size: ${file.fileSize} bytes');
+              print('    ID: ${file.id}');
+              print('    URL: ${file.downloadUrl}');
+            }
+          }
+          print('- Read by: ${message.read_by_users?.length ?? 0} users');
+          if (message.read_by_users != null &&
+              message.read_by_users!.isNotEmpty) {
+            print('  Readers:');
+            for (var reader in message.read_by_users!) {
+              print(
+                '    - ${reader.username} (${reader.contact_id}) at ${reader.read_at}',
+              );
+            }
+          }
+
           // Устанавливаем is_unread в зависимости от количества прочитавших
           final readCount = message.read_by_users?.length ?? 0;
-          return message.copyWith(
+          final finalMessage = message.copyWith(
             is_unread: readCount < 2, // Если прочитал только один человек
           );
+          print('Final message unread status: ${finalMessage.is_unread}');
+          return finalMessage;
         }),
       );
-      print('Messages fetched successfully.');
+      print('Successfully added ${messages.length} messages to the list');
     } else {
-      print('Failed to fetch messages: ${response.body}');
+      print('Failed to fetch messages: ${response.statusCode}');
+      print('Error response body: ${response.body}');
     }
     isLoadingMessages.value = false;
+    print('=== Finished fetchMessages ===');
     _scrollToBottom();
   }
 
@@ -662,6 +719,68 @@ class ChatsController extends GetxController {
       );
     } catch (error) {
       print('Ошибка при обработке изменения статуса пользователя: $error');
+    }
+  }
+
+  void sendMessageWithFile(File file) async {
+    if (selectedConversation.value == null) {
+      print('No conversation selected for file upload');
+      return;
+    }
+
+    if (_isUploading) {
+      print('File upload already in progress');
+      return;
+    }
+
+    try {
+      _isUploading = true;
+      print('=== Starting file upload process ===');
+      print('File path: ${file.path}');
+      print('File size: ${await file.length()} bytes');
+      print('Conversation ID: ${selectedConversation.value!.id}');
+      print('Sender ID: $userId');
+      print('Message content: ${messageController.text}');
+
+      final fileService = Get.find<FileService>();
+      print('Calling uploadFileWithMessage...');
+
+      final result = await fileService.uploadFileWithMessage(
+        file: file,
+        conversationId: selectedConversation.value!.id,
+        senderId: userId,
+        content: messageController.text,
+      );
+
+      print('Upload result: $result');
+
+      if (result != null) {
+        print('File upload successful');
+        print('Server response: $result');
+
+        // Очищаем поле ввода
+        messageController.clear();
+
+        // Создаем сообщение из ответа сервера
+        print('Creating message from server response...');
+        final message = Message.fromJson(result['message']);
+        print('Created message: ${message.id}');
+
+        // Добавляем сообщение в список
+        print('Adding message to messages list');
+        messages.insert(0, message);
+        _scrollToBottom();
+
+        // Обновляем последнее сообщение в списке чатов
+        print('Updating conversation last message');
+        _updateConversationLastMessage(message);
+      } else {
+        print('Failed to upload file: result is null');
+      }
+    } catch (e) {
+      print('Error during file upload: $e');
+    } finally {
+      _isUploading = false;
     }
   }
 }

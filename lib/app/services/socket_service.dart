@@ -104,44 +104,57 @@ class SocketService extends GetxService {
 
   void _handleMessage(dynamic data) {
     try {
-      final message = Message.fromJson(data);
-
-      // Проверяем, открыт ли чат, только если ChatsController существует
-      bool isChatOpen = false;
-      if (Get.isRegistered<ChatsController>()) {
-        isChatOpen = Get.find<ChatsController>().isChatOpen(
-          message.conversation_id,
-        );
+      if (data == null) {
+        print('Received null message data');
+        return;
       }
 
-      // Показываем уведомление, если чат не открыт
-      if (!isChatOpen) {
-        String senderName = message.sender_username;
+      final message = Message.fromJson(data);
+      final chatsController =
+          Get.isRegistered<ChatsController>()
+              ? Get.find<ChatsController>()
+              : null;
 
-        // Если ChatsController существует, пытаемся получить название группы
-        if (Get.isRegistered<ChatsController>()) {
-          final chatsController = Get.find<ChatsController>();
+      // Проверяем, открыт ли чат с этим сообщением
+      bool isChatOpen = false;
+      if (chatsController != null) {
+        isChatOpen = chatsController.isChatOpen(message.conversation_id);
+      }
+
+      // Если чат не открыт, показываем уведомление
+      if (!isChatOpen) {
+        String notificationTitle = message.sender_username;
+
+        // Пытаемся получить название беседы для групповых чатов
+        if (chatsController != null) {
           try {
             final conversation = chatsController.conversations.firstWhere(
               (c) => c.id == message.conversation_id,
+              orElse: () => throw Exception('Conversation not found'),
             );
+
             if (conversation.is_group_chat) {
-              senderName = conversation.conversation_name;
+              notificationTitle =
+                  '${conversation.conversation_name} (${message.sender_username})';
             }
           } catch (e) {
             print('Error getting conversation info: $e');
           }
         }
 
-        _notificationService.showMessageNotification(message, senderName);
+        _notificationService.showMessageNotification(
+          message,
+          notificationTitle,
+        );
       }
 
-      // Передаем сообщение в контроллер чатов, если он существует
-      if (Get.isRegistered<ChatsController>()) {
-        Get.find<ChatsController>().handleIncomingMessage(data);
+      // Обновляем UI через контроллер, если он доступен
+      if (chatsController != null) {
+        chatsController.handleIncomingMessage(data);
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('Error handling message: $e');
+      print('Stack trace: $stackTrace');
     }
   }
 

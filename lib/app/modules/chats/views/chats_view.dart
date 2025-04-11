@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get/get.dart';
@@ -9,6 +11,7 @@ import 'package:vka_chat_ng/app/data/message_model.dart';
 import 'package:vka_chat_ng/app/routes/app_pages.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:vka_chat_ng/app/widgets/main_layout.dart';
+import 'package:vka_chat_ng/app/services/file_service.dart';
 import '../controllers/chats_controller.dart';
 
 class ChatsView extends GetView<ChatsController> {
@@ -794,24 +797,165 @@ class ChatMessages extends StatelessWidget {
                                   ),
                                   SizedBox(height: 4),
                                 ],
-                                Text(
-                                  message.content,
-                                  style: TextStyle(
-                                    color:
-                                        isSender
-                                            ? Get
-                                                .theme
-                                                .colorScheme
-                                                .onTertiaryContainer
-                                            : Get
-                                                .theme
-                                                .colorScheme
-                                                .onSecondaryContainer,
-                                    fontSize: 16,
-                                    fontFamily: 'Nunito',
+                                if (message.content.isNotEmpty) ...[
+                                  Text(
+                                    message.content,
+                                    style: TextStyle(
+                                      color:
+                                          isSender
+                                              ? Get
+                                                  .theme
+                                                  .colorScheme
+                                                  .onTertiaryContainer
+                                              : Get
+                                                  .theme
+                                                  .colorScheme
+                                                  .onSecondaryContainer,
+                                      fontSize: 16,
+                                      fontFamily: 'Nunito',
+                                    ),
                                   ),
-                                ),
-                                SizedBox(height: 4),
+                                  SizedBox(height: 4),
+                                ],
+                                // Отображаем файлы только если они есть и не пусты
+                                if (message.files != null &&
+                                    message.files!.isNotEmpty)
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color:
+                                          Get.theme.colorScheme.surfaceVariant,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: ListTile(
+                                      leading: _getFileIcon(
+                                        message.files!.first.fileType,
+                                      ),
+                                      title: Text(
+                                        message.files!.first.fileName,
+                                        style: TextStyle(
+                                          color:
+                                              Get
+                                                  .theme
+                                                  .colorScheme
+                                                  .onSurfaceVariant,
+                                          fontSize: 14,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      subtitle: Text(
+                                        _formatFileSize(
+                                          message.files!.first.fileSize,
+                                        ),
+                                        style: TextStyle(
+                                          color: Get
+                                              .theme
+                                              .colorScheme
+                                              .onSurfaceVariant
+                                              .withOpacity(0.7),
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                      trailing: Obx(() {
+                                        final controller =
+                                            Get.find<ChatsController>();
+                                        final isDownloading = controller
+                                            .downloadingFiles
+                                            .contains(message.files!.first.id);
+                                        final isDownloaded = controller
+                                            .downloadedFiles
+                                            .contains(message.files!.first.id);
+
+                                        if (isDownloading) {
+                                          return SizedBox(
+                                            width: 24,
+                                            height: 24,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              valueColor:
+                                                  AlwaysStoppedAnimation<Color>(
+                                                    Get
+                                                        .theme
+                                                        .colorScheme
+                                                        .primary,
+                                                  ),
+                                            ),
+                                          );
+                                        } else if (isDownloaded) {
+                                          return IconButton(
+                                            icon: Icon(
+                                              Icons.open_in_new,
+                                              color:
+                                                  Get.theme.colorScheme.primary,
+                                            ),
+                                            onPressed: () async {
+                                              final filePath =
+                                                  '${Platform.environment['USERPROFILE']}\\Downloads\\VKA Chat\\${message.files!.first.fileName}';
+                                              final localFile = File(filePath);
+                                              if (await localFile.exists()) {
+                                                final result =
+                                                    await Process.run('cmd', [
+                                                      '/c',
+                                                      'start',
+                                                      '',
+                                                      filePath,
+                                                    ]);
+                                                if (result.exitCode != 0) {
+                                                  Get.snackbar(
+                                                    'Ошибка',
+                                                    'Не удалось открыть файл',
+                                                    snackPosition:
+                                                        SnackPosition.BOTTOM,
+                                                  );
+                                                }
+                                              }
+                                            },
+                                          );
+                                        } else {
+                                          return IconButton(
+                                            icon: Icon(
+                                              Icons.download,
+                                              color:
+                                                  Get.theme.colorScheme.primary,
+                                            ),
+                                            onPressed: () async {
+                                              controller.downloadingFiles.add(
+                                                message.files!.first.id,
+                                              );
+                                              final fileService =
+                                                  Get.find<FileService>();
+                                              final downloadedFile =
+                                                  await fileService
+                                                      .downloadFile(
+                                                        message.files!.first.id,
+                                                      );
+                                              controller.downloadingFiles
+                                                  .remove(
+                                                    message.files!.first.id,
+                                                  );
+                                              if (downloadedFile != null) {
+                                                controller.downloadedFiles.add(
+                                                  message.files!.first.id,
+                                                );
+                                                Get.snackbar(
+                                                  'Успешно',
+                                                  'Файл загружен',
+                                                  snackPosition:
+                                                      SnackPosition.BOTTOM,
+                                                );
+                                              } else {
+                                                Get.snackbar(
+                                                  'Ошибка',
+                                                  'Не удалось загрузить файл',
+                                                  snackPosition:
+                                                      SnackPosition.BOTTOM,
+                                                );
+                                              }
+                                            },
+                                          );
+                                        }
+                                      }),
+                                    ),
+                                  ),
                                 Row(
                                   mainAxisSize: MainAxisSize.min,
                                   mainAxisAlignment:
@@ -1002,17 +1146,56 @@ class ChatMessages extends StatelessWidget {
       ),
     );
   }
+
+  Widget _getFileIcon(String fileType) {
+    if (fileType.startsWith('image/')) {
+      return Icon(Icons.image, color: Get.theme.colorScheme.primary);
+    } else if (fileType.startsWith('video/')) {
+      return Icon(Icons.video_file, color: Get.theme.colorScheme.primary);
+    } else if (fileType.startsWith('audio/')) {
+      return Icon(Icons.audio_file, color: Get.theme.colorScheme.primary);
+    } else if (fileType == 'application/pdf') {
+      return Icon(Icons.picture_as_pdf, color: Get.theme.colorScheme.primary);
+    } else if (fileType.startsWith('application/')) {
+      return Icon(
+        Icons.insert_drive_file,
+        color: Get.theme.colorScheme.primary,
+      );
+    } else {
+      return Icon(Icons.attach_file, color: Get.theme.colorScheme.primary);
+    }
+  }
+
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024 * 1024)
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+  }
 }
 
 class ChatInput extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = Get.find<ChatsController>();
+    final fileService = Get.find<FileService>();
+
     return Container(
       padding: EdgeInsets.all(8.0),
       decoration: BoxDecoration(color: Get.theme.colorScheme.surface),
       child: Row(
         children: [
+          IconButton(
+            icon: Icon(Icons.attach_file, color: Get.theme.colorScheme.primary),
+            onPressed: () async {
+              final result = await fileService.pickFile();
+              if (result != null && result.files.isNotEmpty) {
+                final file = File(result.files.first.path!);
+                controller.sendMessageWithFile(file);
+              }
+            },
+          ),
           Expanded(
             child: TextField(
               controller: controller.messageController,

@@ -6,6 +6,7 @@ import 'package:vka_chat_ng/app/controllers/language_controller.dart';
 import 'package:vka_chat_ng/app/modules/settings/controllers/settings_controller.dart';
 import 'package:vka_chat_ng/app/services/socket_service.dart';
 import 'package:vka_chat_ng/app/services/notification_service.dart';
+import 'package:vka_chat_ng/app/services/file_service.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:vka_chat_ng/theme.dart';
 import 'package:vka_chat_ng/app/translations/app_translations.dart';
@@ -22,8 +23,9 @@ Future<void> main() async {
   final notificationService = Get.put(NotificationService());
   notificationService.onInit();
 
-  // Регистрируем SocketService как синглтон
+  // Регистрируем сервисы как синглтоны
   Get.put(SocketService(), permanent: true);
+  Get.put(FileService(), permanent: true);
 
   // Загрузка сохраненной темы
   final storage = FlutterSecureStorage();

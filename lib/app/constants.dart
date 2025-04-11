@@ -4,8 +4,8 @@ class AppConstants {
 
   //static const String baseUrl = 'http://192.168.56.1:6000';
   // static const String baseUrl = 'http://192.168.31.57:6000';
-  // static const String baseUrl = 'http://localhost:6000';
-  static const String baseUrl = 'http://172.16.2.78:6000';
+  static const String baseUrl = 'http://localhost:6000';
+  // static const String baseUrl = 'http://172.16.2.78:6000';
 }
 
 class AppKeys {
