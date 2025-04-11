@@ -14,6 +14,25 @@ class FileService extends GetxService {
   final _storage = FlutterSecureStorage();
   final _baseUrl = AppConstants.baseUrl;
 
+  Future<File?> findExistingFile(String fileName) async {
+    try {
+      // Получаем путь к папке Загрузки
+      final downloadsPath = '${Platform.environment['USERPROFILE']}\\Downloads';
+      final vkaChatPath = '$downloadsPath\\VKA Chat';
+      final filePath = '$vkaChatPath\\$fileName';
+
+      final file = File(filePath);
+      if (await file.exists()) {
+        print('File already exists at: $filePath');
+        return file;
+      }
+      return null;
+    } catch (e) {
+      print('Error checking existing file: $e');
+      return null;
+    }
+  }
+
   Future<Map<String, dynamic>?> uploadFileWithMessage({
     required File file,
     required String conversationId,
@@ -29,6 +48,13 @@ class FileService extends GetxService {
         return null;
       }
       print('Token found');
+
+      // Проверяем, существует ли файл в папке загрузок
+      final existingFile = await findExistingFile(file.path.split('\\').last);
+      if (existingFile != null) {
+        print('Using existing file from downloads folder');
+        file = existingFile;
+      }
 
       print('Creating multipart request...');
       print('Upload URL: $_baseUrl/files/upload');

@@ -743,8 +743,17 @@ class ChatsController extends GetxController {
       print('Message content: ${messageController.text}');
 
       final fileService = Get.find<FileService>();
-      print('Calling uploadFileWithMessage...');
 
+      // Проверяем, существует ли файл в папке загрузок
+      final existingFile = await fileService.findExistingFile(
+        file.path.split('\\').last,
+      );
+      if (existingFile != null) {
+        print('Using existing file from downloads folder');
+        file = existingFile;
+      }
+
+      print('Calling uploadFileWithMessage...');
       final result = await fileService.uploadFileWithMessage(
         file: file,
         conversationId: selectedConversation.value!.id,

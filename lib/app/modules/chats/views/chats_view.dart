@@ -858,12 +858,14 @@ class ChatMessages extends StatelessWidget {
                                       trailing: Obx(() {
                                         final controller =
                                             Get.find<ChatsController>();
+                                        final fileService =
+                                            Get.find<FileService>();
+                                        final file = message.files!.first;
+                                        final filePath =
+                                            '${Platform.environment['USERPROFILE']}\\Downloads\\VKA Chat\\${file.fileName}';
                                         final isDownloading = controller
                                             .downloadingFiles
-                                            .contains(message.files!.first.id);
-                                        final isDownloaded = controller
-                                            .downloadedFiles
-                                            .contains(message.files!.first.id);
+                                            .contains(file.id);
 
                                         if (isDownloading) {
                                           return SizedBox(
@@ -880,80 +882,164 @@ class ChatMessages extends StatelessWidget {
                                                   ),
                                             ),
                                           );
-                                        } else if (isDownloaded) {
-                                          return IconButton(
-                                            icon: Icon(
-                                              Icons.open_in_new,
-                                              color:
-                                                  Get.theme.colorScheme.primary,
-                                            ),
-                                            onPressed: () async {
-                                              final filePath =
-                                                  '${Platform.environment['USERPROFILE']}\\Downloads\\VKA Chat\\${message.files!.first.fileName}';
-                                              final localFile = File(filePath);
-                                              if (await localFile.exists()) {
-                                                final result =
-                                                    await Process.run('cmd', [
-                                                      '/c',
-                                                      'start',
-                                                      '',
-                                                      filePath,
-                                                    ]);
-                                                if (result.exitCode != 0) {
-                                                  Get.snackbar(
-                                                    'Ошибка',
-                                                    'Не удалось открыть файл',
-                                                    snackPosition:
-                                                        SnackPosition.BOTTOM,
-                                                  );
-                                                }
-                                              }
-                                            },
-                                          );
-                                        } else {
-                                          return IconButton(
-                                            icon: Icon(
-                                              Icons.download,
-                                              color:
-                                                  Get.theme.colorScheme.primary,
-                                            ),
-                                            onPressed: () async {
-                                              controller.downloadingFiles.add(
-                                                message.files!.first.id,
+                                        }
+
+                                        return FutureBuilder<bool>(
+                                          future: File(filePath).exists(),
+                                          builder: (context, snapshot) {
+                                            if (snapshot.hasData &&
+                                                snapshot.data!) {
+                                              // Файл существует
+                                              return IconButton(
+                                                icon: Icon(
+                                                  Icons.open_in_new,
+                                                  color:
+                                                      Get
+                                                          .theme
+                                                          .colorScheme
+                                                          .primary,
+                                                ),
+                                                onPressed: () async {
+                                                  final result =
+                                                      await Process.run('cmd', [
+                                                        '/c',
+                                                        'start',
+                                                        '',
+                                                        filePath,
+                                                      ]);
+                                                  if (result.exitCode != 0) {
+                                                    Get.snackbar(
+                                                      'Ошибка',
+                                                      'Не удалось открыть файл',
+                                                      snackPosition:
+                                                          SnackPosition.BOTTOM,
+                                                    );
+                                                  }
+                                                },
                                               );
-                                              final fileService =
-                                                  Get.find<FileService>();
-                                              final downloadedFile =
-                                                  await fileService
-                                                      .downloadFile(
-                                                        message.files!.first.id,
+                                            } else {
+                                              // Файл не существует
+                                              return IconButton(
+                                                icon: Icon(
+                                                  Icons.download,
+                                                  color:
+                                                      Get
+                                                          .theme
+                                                          .colorScheme
+                                                          .primary,
+                                                ),
+                                                onPressed: () async {
+                                                  controller.downloadingFiles
+                                                      .add(file.id);
+                                                  final downloadedFile =
+                                                      await fileService
+                                                          .downloadFile(
+                                                            file.id,
+                                                          );
+                                                  controller.downloadingFiles
+                                                      .remove(file.id);
+
+                                                  if (downloadedFile != null) {
+                                                    controller.downloadedFiles
+                                                        .add(file.id);
+                                                    Get.snackbar(
+                                                      'Успешно',
+                                                      'Файл загружен',
+                                                      snackPosition:
+                                                          SnackPosition.BOTTOM,
+                                                    );
+                                                  } else {
+                                                    Get.snackbar(
+                                                      'Ошибка',
+                                                      'Не удалось загрузить файл',
+                                                      snackPosition:
+                                                          SnackPosition.BOTTOM,
+                                                    );
+                                                  }
+                                                },
+                                              );
+                                            }
+                                          },
+                                        );
+                                      }),
+                                      onTap: () async {
+                                        final controller =
+                                            Get.find<ChatsController>();
+                                        final fileService =
+                                            Get.find<FileService>();
+                                        final file = message.files!.first;
+                                        final filePath =
+                                            '${Platform.environment['USERPROFILE']}\\Downloads\\VKA Chat\\${file.fileName}';
+                                        final localFile = File(filePath);
+
+                                        if (await localFile.exists()) {
+                                          // Если файл существует, открываем его
+                                          final result = await Process.run(
+                                            'cmd',
+                                            ['/c', 'start', '', filePath],
+                                          );
+                                          if (result.exitCode != 0) {
+                                            Get.snackbar(
+                                              'Ошибка',
+                                              'Не удалось открыть файл',
+                                              snackPosition:
+                                                  SnackPosition.BOTTOM,
+                                            );
+                                          }
+                                        } else {
+                                          // Если файла нет, показываем диалог с предложением загрузить
+                                          Get.dialog(
+                                            AlertDialog(
+                                              title: Text('Загрузка файла'),
+                                              content: Text(
+                                                'Файл не найден в системе. Хотите загрузить его?',
+                                              ),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () => Get.back(),
+                                                  child: Text('Отмена'),
+                                                ),
+                                                TextButton(
+                                                  onPressed: () async {
+                                                    Get.back();
+                                                    controller.downloadingFiles
+                                                        .add(file.id);
+                                                    final downloadedFile =
+                                                        await fileService
+                                                            .downloadFile(
+                                                              file.id,
+                                                            );
+                                                    controller.downloadingFiles
+                                                        .remove(file.id);
+
+                                                    if (downloadedFile !=
+                                                        null) {
+                                                      controller.downloadedFiles
+                                                          .add(file.id);
+                                                      Get.snackbar(
+                                                        'Успешно',
+                                                        'Файл загружен',
+                                                        snackPosition:
+                                                            SnackPosition
+                                                                .BOTTOM,
                                                       );
-                                              controller.downloadingFiles
-                                                  .remove(
-                                                    message.files!.first.id,
-                                                  );
-                                              if (downloadedFile != null) {
-                                                controller.downloadedFiles.add(
-                                                  message.files!.first.id,
-                                                );
-                                                Get.snackbar(
-                                                  'Успешно',
-                                                  'Файл загружен',
-                                                  snackPosition:
-                                                      SnackPosition.BOTTOM,
-                                                );
-                                              } else {
-                                                Get.snackbar(
-                                                  'Ошибка',
-                                                  'Не удалось загрузить файл',
-                                                  snackPosition:
-                                                      SnackPosition.BOTTOM,
-                                                );
-                                              }
-                                            },
+                                                    } else {
+                                                      Get.snackbar(
+                                                        'Ошибка',
+                                                        'Не удалось загрузить файл',
+                                                        snackPosition:
+                                                            SnackPosition
+                                                                .BOTTOM,
+                                                      );
+                                                    }
+                                                  },
+                                                  child: Text('Загрузить'),
+                                                ),
+                                              ],
+                                            ),
                                           );
                                         }
-                                      }),
+                                      },
                                     ),
                                   ),
                                 Row(
