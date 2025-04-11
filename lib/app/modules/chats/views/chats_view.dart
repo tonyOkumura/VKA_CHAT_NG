@@ -242,7 +242,44 @@ class ChatList extends StatelessWidget {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: Text('Группы'),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text('Группы'),
+                          SizedBox(width: 4),
+                          Obx(() {
+                            final unreadGroups =
+                                controller.conversations
+                                    .where(
+                                      (c) =>
+                                          c.is_group_chat &&
+                                          (c.unread_count ?? 0) > 0,
+                                    )
+                                    .length;
+                            if (unreadGroups > 0) {
+                              return Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Get.theme.colorScheme.secondary,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  '$unreadGroups',
+                                  style: TextStyle(
+                                    color: Get.theme.colorScheme.onSecondary,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              );
+                            }
+                            return SizedBox.shrink();
+                          }),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -266,7 +303,44 @@ class ChatList extends StatelessWidget {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: Text('Диалоги'),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text('Диалоги'),
+                          SizedBox(width: 4),
+                          Obx(() {
+                            final unreadDialogs =
+                                controller.conversations
+                                    .where(
+                                      (c) =>
+                                          !c.is_group_chat &&
+                                          (c.unread_count ?? 0) > 0,
+                                    )
+                                    .length;
+                            if (unreadDialogs > 0) {
+                              return Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Get.theme.colorScheme.secondary,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  '$unreadDialogs',
+                                  style: TextStyle(
+                                    color: Get.theme.colorScheme.onSecondary,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              );
+                            }
+                            return SizedBox.shrink();
+                          }),
+                        ],
+                      ),
                     ),
                   ),
                 ),
