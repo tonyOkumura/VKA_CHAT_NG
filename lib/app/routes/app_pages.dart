@@ -16,8 +16,7 @@ import '../modules/splash/bindings/splash_binding.dart';
 import '../modules/splash/views/splash_view.dart';
 import '../modules/tasks/bindings/tasks_binding.dart';
 import '../modules/tasks/views/tasks_view.dart';
-import '../modules/tasks/bindings/create_edit_task_binding.dart';
-import '../modules/tasks/views/create_edit_task_view.dart';
+
 import '../modules/tasks/bindings/task_details_binding.dart';
 import '../modules/tasks/views/task_details_view.dart';
 

@@ -8,6 +8,7 @@ import 'package:vka_chat_ng/app/data/models/contact_model.dart';
 import 'package:vka_chat_ng/app/modules/contacts/controllers/contacts_controller.dart';
 import 'package:vka_chat_ng/app/modules/chats/controllers/chats_controller.dart';
 import 'package:vka_chat_ng/app/modules/tasks/widgets/assignee_selection_dialog.dart';
+import 'package:vka_chat_ng/app/modules/tasks/widgets/single_assignee_selection_dialog.dart';
 
 class TasksController extends GetxController {
   final TaskApiService _apiService = Get.find<TaskApiService>();
@@ -38,9 +39,8 @@ class TasksController extends GetxController {
   final RxString dialogSelectedStatus = 'open'.obs;
   final RxInt dialogSelectedPriority = 3.obs;
   final Rxn<DateTime> dialogSelectedDueDate = Rxn<DateTime>();
-  final RxList<String> dialogSelectedAssigneeIds = <String>[].obs;
-  // --- Добавляем список полных моделей выбранных исполнителей для отображения ---
-  final RxList<Contact> dialogSelectedAssignees = <Contact>[].obs;
+  final RxnString dialogSelectedAssigneeId = RxnString();
+  final Rxn<Contact> dialogSelectedAssignee = Rxn<Contact>();
 
   // Доступные опции для диалога (можно вынести)
   final List<String> statusOptions = ['open', 'in_progress', 'done', 'closed'];
@@ -94,8 +94,8 @@ class TasksController extends GetxController {
     dialogSelectedStatus.value = 'open';
     dialogSelectedPriority.value = 3;
     dialogSelectedDueDate.value = null;
-    dialogSelectedAssigneeIds.clear();
-    dialogSelectedAssignees.clear(); // <-- Очищаем список моделей
+    dialogSelectedAssigneeId.value = null;
+    dialogSelectedAssignee.value = null;
   }
 
   void initDialogForEdit(TaskModel task) {
@@ -107,13 +107,23 @@ class TasksController extends GetxController {
     dialogSelectedStatus.value = task.status;
     dialogSelectedPriority.value = task.priority;
     dialogSelectedDueDate.value = task.dueDate?.toLocal();
-    dialogSelectedAssigneeIds.assignAll(task.assignees.map((a) => a.id));
-    // --- Находим полные модели контактов по ID ---
-    final selectedContacts =
-        _contactsController.contacts
-            .where((contact) => dialogSelectedAssigneeIds.contains(contact.id))
-            .toList();
-    dialogSelectedAssignees.assignAll(selectedContacts);
+    dialogSelectedAssigneeId.value = task.assigneeId;
+    if (task.assigneeId != null) {
+      dialogSelectedAssignee.value = _contactsController.contacts
+          .firstWhereOrNull((contact) => contact.id == task.assigneeId);
+      if (dialogSelectedAssignee.value == null) {
+        print(
+          "Warning: Assignee contact not found locally for ID ${task.assigneeId}",
+        );
+        dialogSelectedAssignee.value = Contact(
+          id: task.assigneeId!,
+          username: task.assigneeUsername ?? 'ID: ${task.assigneeId}',
+          email: '',
+        );
+      }
+    } else {
+      dialogSelectedAssignee.value = null;
+    }
   }
 
   // --- Получение и Фильтрация ---
@@ -124,11 +134,7 @@ class TasksController extends GetxController {
     errorMessage.value = null;
     try {
       // Загружаем *все* задачи пользователя с сервера
-      final tasks = await _apiService.getTasks(
-        // --- Пока не отправляем фильтры на сервер ---
-        // status: statusFilter.value,
-        // search: searchTerm.value,
-      );
+      final tasks = await _apiService.getTasks();
       taskList.assignAll(tasks); // Сохраняем полный список
       _applyFilters(); // Применяем текущие фильтры к загруженным данным
     } catch (e) {
@@ -158,13 +164,7 @@ class TasksController extends GetxController {
     // 2. Фильтр "Назначенные мне"
     if (assignedToMe) {
       results =
-          results
-              .where(
-                (task) => task.assignees.any(
-                  (assignee) => assignee.id == currentUserId,
-                ),
-              )
-              .toList();
+          results.where((task) => task.assigneeId == currentUserId).toList();
     }
 
     // 3. Фильтр по поиску (название или описание)
@@ -174,7 +174,9 @@ class TasksController extends GetxController {
             final titleMatch = task.title.toLowerCase().contains(search);
             final descriptionMatch =
                 task.description?.toLowerCase().contains(search) ?? false;
-            return titleMatch || descriptionMatch;
+            final assigneeMatch =
+                task.assigneeUsername?.toLowerCase().contains(search) ?? false;
+            return titleMatch || descriptionMatch || assigneeMatch;
           }).toList();
     }
 
@@ -230,7 +232,7 @@ class TasksController extends GetxController {
     String? description,
     String status = 'open',
     int priority = 3,
-    List<String>? assigneeIds,
+    String? assigneeId,
     DateTime? dueDate,
   }) async {
     dialogErrorMessage.value = null;
@@ -241,7 +243,7 @@ class TasksController extends GetxController {
         'priority': priority,
       };
       if (description != null) newTaskData['description'] = description;
-      if (assigneeIds != null) newTaskData['assignee_ids'] = assigneeIds;
+      if (assigneeId != null) newTaskData['assignee_id'] = assigneeId;
       if (dueDate != null)
         newTaskData['due_date'] =
             dueDate.toUtc().toIso8601String(); // Отправляем UTC
@@ -323,21 +325,19 @@ class TasksController extends GetxController {
       return;
     }
 
-    final List<String>? selectedIds = await Get.dialog<List<String>>(
-      AssigneeSelectionDialog(
-        initialSelectedIds: List<String>.from(dialogSelectedAssigneeIds),
+    final Contact? selectedContact = await Get.dialog<Contact>(
+      SingleAssigneeSelectionDialog(
+        initialSelectedContact: dialogSelectedAssignee.value,
         availableContacts: _contactsController.contacts,
       ),
     );
 
-    if (selectedIds != null) {
-      dialogSelectedAssigneeIds.assignAll(selectedIds);
-      final selectedContacts =
-          _contactsController.contacts
-              .where((contact) => selectedIds.contains(contact.id))
-              .toList();
-      dialogSelectedAssignees.assignAll(selectedContacts);
-    }
+    dialogSelectedAssignee.value = selectedContact;
+    dialogSelectedAssigneeId.value = selectedContact?.id;
+
+    print(
+      "[TasksController] Selected assignee: ${selectedContact?.username ?? 'None'} (ID: ${selectedContact?.id})",
+    );
   }
 
   // Сохранение из диалога
@@ -354,14 +354,19 @@ class TasksController extends GetxController {
       if (isDialogEditing) {
         final updateData = <String, dynamic>{
           'title': titleDialogController.text,
-          'description': descriptionDialogController.text,
+          'description':
+              descriptionDialogController.text.isNotEmpty
+                  ? descriptionDialogController.text
+                  : null,
           'status': dialogSelectedStatus.value,
           'priority': dialogSelectedPriority.value,
-          'assignee_ids': dialogSelectedAssigneeIds.toList(),
+          'assignee_id': dialogSelectedAssigneeId.value,
         };
         if (dialogSelectedDueDate.value != null) {
           updateData['due_date'] =
               dialogSelectedDueDate.value!.toUtc().toIso8601String();
+        } else {
+          updateData['due_date'] = null;
         }
         success = await updateTask(dialogEditingTaskId.value!, updateData);
       } else {
@@ -373,7 +378,7 @@ class TasksController extends GetxController {
                   : null,
           status: dialogSelectedStatus.value,
           priority: dialogSelectedPriority.value,
-          assigneeIds: dialogSelectedAssigneeIds.toList(),
+          assigneeId: dialogSelectedAssigneeId.value,
           dueDate: dialogSelectedDueDate.value,
         );
       }
@@ -438,8 +443,8 @@ class TasksController extends GetxController {
     dialogSelectedStatus.close();
     dialogSelectedPriority.close();
     dialogSelectedDueDate.close();
-    dialogSelectedAssigneeIds.close();
-    dialogSelectedAssignees.close();
+    dialogSelectedAssigneeId.close();
+    dialogSelectedAssignee.close();
     super.onClose();
   }
 }

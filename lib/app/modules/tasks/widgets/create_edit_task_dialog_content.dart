@@ -15,6 +15,8 @@ class CreateEditTaskDialogContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context); // Получаем тему
+
     // Теперь используем переданный controller
     return Obx(
       () => SingleChildScrollView(
@@ -137,56 +139,53 @@ class CreateEditTaskDialogContent extends StatelessWidget {
                         : () => controller.pickDialogDueDate(context),
               ),
 
-              // --- Отображение и Выбор Исполнителей ---
+              // --- Отображение и Выбор Исполнителя ---
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.people_outline),
-                title: const Text('Исполнители'),
+                leading: const Icon(Icons.person_outline),
+                title: const Text('Исполнитель'),
                 subtitle:
-                    controller.dialogSelectedAssignees.isEmpty
+                    controller.dialogSelectedAssignee.value == null
                         ? const Text('Нажмите для выбора')
-                        : Wrap(
-                          // Показываем выбранных
-                          spacing: 4.0,
-                          runSpacing: 0.0,
-                          children:
-                              controller.dialogSelectedAssignees
-                                  .map(
-                                    (contact) => Chip(
-                                      avatar: CircleAvatar(
-                                        child: Text(
-                                          contact.username.isNotEmpty
-                                              ? contact.username[0]
-                                                  .toUpperCase()
-                                              : '?',
-                                        ),
-                                        radius: 10,
-                                      ),
-                                      label: Text(
-                                        contact.username,
-                                        style: const TextStyle(fontSize: 11),
-                                      ),
-                                      materialTapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
-                                      visualDensity: VisualDensity.compact,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 4,
-                                      ),
-                                      // Можно добавить удаление по нажатию на крестик чипа
-                                      onDeleted:
-                                          controller.isDialogLoading.value
-                                              ? null
-                                              : () {
-                                                controller
-                                                    .dialogSelectedAssigneeIds
-                                                    .remove(contact.id);
-                                                controller
-                                                    .dialogSelectedAssignees
-                                                    .remove(contact);
-                                              },
-                                    ),
-                                  )
-                                  .toList(),
+                        : Chip(
+                          avatar: CircleAvatar(
+                            backgroundColor: controller.getUserColor(
+                              controller.dialogSelectedAssignee.value!.id,
+                            ),
+                            foregroundColor: Colors.white,
+                            child: Text(
+                              controller
+                                      .dialogSelectedAssignee
+                                      .value!
+                                      .username
+                                      .isNotEmpty
+                                  ? controller
+                                      .dialogSelectedAssignee
+                                      .value!
+                                      .username[0]
+                                      .toUpperCase()
+                                  : '?',
+                            ),
+                            radius: 10,
+                          ),
+                          label: Text(
+                            controller.dialogSelectedAssignee.value!.username,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          onDeleted:
+                              controller.isDialogLoading.value
+                                  ? null
+                                  : () {
+                                    controller.dialogSelectedAssignee.value =
+                                        null;
+                                    controller.dialogSelectedAssigneeId.value =
+                                        null;
+                                  },
+                          deleteIconColor: theme.colorScheme.onSurfaceVariant,
                         ),
                 trailing: const Icon(Icons.chevron_right),
                 onTap:

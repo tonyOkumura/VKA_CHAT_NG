@@ -112,6 +112,9 @@ class TaskApiService extends GetxService {
 
   Future<TaskModel> createTask(Map<String, dynamic> taskData) async {
     try {
+      print(
+        "[TaskApiService] Creating task with data: $taskData",
+      ); // Лог для отладки
       final response = await _dio.post(_tasksEndpointPath, data: taskData);
       if (response.statusCode == 201 && response.data != null) {
         return TaskModel.fromJson(response.data as Map<String, dynamic>);
@@ -165,6 +168,9 @@ class TaskApiService extends GetxService {
     Map<String, dynamic> updateData,
   ) async {
     try {
+      print(
+        "[TaskApiService] Updating task $taskId with data: $updateData",
+      ); // Лог для отладки
       final response = await _dio.put(
         '$_tasksEndpointPath/$taskId',
         data: updateData,

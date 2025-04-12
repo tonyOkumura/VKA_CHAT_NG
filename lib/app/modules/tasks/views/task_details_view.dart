@@ -3,7 +3,6 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import '../controllers/task_details_controller.dart';
 // Импорты для виджетов, если понадобятся (например, для отображения исполнителей)
-import '../../../data/models/assignee_model.dart';
 import '../../../data/models/task_model.dart'; // TaskModel
 
 class TaskDetailsView extends GetView<TaskDetailsController> {
@@ -144,38 +143,15 @@ class TaskDetailsView extends GetView<TaskDetailsController> {
         ),
         const SizedBox(height: 16),
 
-        // --- Исполнители ---
-        if (task.assignees.isNotEmpty) ...[
-          Text('Исполнители:', style: theme.textTheme.titleMedium),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8.0,
-            runSpacing: 4.0,
-            children:
-                task.assignees
-                    .map(
-                      (assignee) => Chip(
-                        avatar: CircleAvatar(
-                          backgroundColor: controller.getUserColor(assignee.id),
-                          foregroundColor: Colors.white,
-                          child: Text(
-                            assignee.username.isNotEmpty
-                                ? assignee.username[0].toUpperCase()
-                                : '?',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          radius: 10,
-                        ),
-                        label: Text(assignee.username),
-                      ),
-                    )
-                    .toList(),
-          ),
-          const SizedBox(height: 16),
-        ],
+        // --- Отображение ОДНОГО исполнителя ---
+        _buildInfoRow(
+          icon: Icons.person_outline,
+          label: 'Исполнитель:',
+          // Показываем имя или "Не назначен"
+          value: task.assigneeUsername ?? 'Не назначен',
+          theme: theme,
+        ),
+        const SizedBox(height: 16),
 
         // --- Разделитель ---
         const Divider(height: 32),

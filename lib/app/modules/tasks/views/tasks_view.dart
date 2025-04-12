@@ -441,6 +441,7 @@ class TaskListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dateFormat = DateFormat('dd.MM.yyyy HH:mm'); // Форматтер даты
+    final TasksController controller = Get.find(); // Для цвета
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
@@ -477,7 +478,53 @@ class TaskListItem extends StatelessWidget {
                 ),
                 const SizedBox(width: 4),
                 Text(task.status), // Можно будет локализовать
-                const Spacer(), // Занимает доступное пространство
+                const SizedBox(width: 8), // Отступ
+                // --- Отображение ОДНОГО исполнителя ---
+                if (task.assigneeId != null && task.assigneeUsername != null)
+                  Expanded(
+                    // Занимает доступное место до Spacer
+                    child: Tooltip(
+                      message: 'Исполнитель: ${task.assigneeUsername}',
+                      child: Chip(
+                        avatar: CircleAvatar(
+                          backgroundColor: controller.getUserColor(
+                            task.assigneeId!,
+                          ),
+                          foregroundColor: Colors.white,
+                          radius: 7,
+                          child: Text(
+                            task.assigneeUsername!.isNotEmpty
+                                ? task.assigneeUsername![0].toUpperCase()
+                                : '?',
+                            style: const TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        label: Text(
+                          task.assigneeUsername!,
+                          style: const TextStyle(fontSize: 11),
+                          overflow:
+                              TextOverflow
+                                  .ellipsis, // Обрезаем, если не влезает
+                        ),
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.only(left: 2, right: 4),
+                        labelPadding: const EdgeInsets.only(left: 3),
+                      ),
+                    ),
+                  )
+                else
+                  const Expanded(
+                    // Занимает место, чтобы дата прижалась вправо
+                    child: Text(
+                      ' • Не назначен',
+                      style: TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+                  ),
+                // ------------------------------------
                 if (task.dueDate != null)
                   Tooltip(
                     message: 'Срок выполнения',
@@ -502,52 +549,6 @@ class TaskListItem extends StatelessWidget {
                   ),
               ],
             ),
-            if (task.assignees.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 4.0),
-                child: Wrap(
-                  // Используем Wrap для переноса, если исполнителей много
-                  spacing: 4.0,
-                  runSpacing: 2.0,
-                  children:
-                      task.assignees.map((assignee) {
-                        // --- Получаем цвет ---
-                        final TasksController controller =
-                            Get.find(); // Находим контроллер
-                        final userColor = controller.getUserColor(assignee.id);
-                        // ----------------------
-                        return Chip(
-                          avatar: CircleAvatar(
-                            // Используем цвет и инициалы
-                            backgroundColor: userColor,
-                            foregroundColor:
-                                Colors.white, // Белый текст на цветном фоне
-                            child: Text(
-                              assignee.username.isNotEmpty
-                                  ? assignee.username[0].toUpperCase()
-                                  : '?',
-                              style: const TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ), // Уменьшаем шрифт для аватара
-                            ),
-                            radius: 8,
-                          ),
-                          label: Text(
-                            assignee.username,
-                            style: const TextStyle(fontSize: 11),
-                          ),
-                          materialTapTargetSize:
-                              MaterialTapTargetSize.shrinkWrap,
-                          labelPadding: const EdgeInsets.symmetric(
-                            horizontal: 4.0,
-                          ),
-                          visualDensity: VisualDensity.compact,
-                          padding: EdgeInsets.zero,
-                        );
-                      }).toList(),
-                ),
-              ),
             Padding(
               padding: const EdgeInsets.only(top: 4.0),
               child: Text(
