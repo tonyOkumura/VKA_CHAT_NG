@@ -1,6 +1,5 @@
-// Убираем импорт AssigneeModel
-
 class TaskModel {
+  // Убираем @override
   final String id;
   final String title;
   final String? description;
@@ -46,6 +45,39 @@ class TaskModel {
       updatedAt: DateTime.parse(json['updated_at'] as String),
       assigneeId: json['assignee_id'] as String?, // Получаем ID
       assigneeUsername: json['assignee_username'] as String?, // Получаем имя
+    );
+  }
+
+  TaskModel copyWith({
+    String? id,
+    String? title,
+    String? description,
+    String? status,
+    int? priority,
+    String? creatorId,
+    String? creatorUsername,
+    DateTime? dueDate,
+    DateTime? updatedAt,
+    Object? assigneeId = const Object(),
+    Object? assigneeUsername = const Object(),
+  }) {
+    return TaskModel(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      status: status ?? this.status,
+      priority: priority ?? this.priority,
+      creatorId: creatorId ?? this.creatorId,
+      creatorUsername: creatorUsername ?? this.creatorUsername,
+      dueDate: dueDate ?? this.dueDate,
+      createdAt: this.createdAt, // createdAt не меняется при copyWith
+      updatedAt: updatedAt ?? DateTime.now(), // Обновляем время изменения
+      // Использование Object() как sentinel value для nullable полей
+      assigneeId: assigneeId is String? ? assigneeId : this.assigneeId,
+      assigneeUsername:
+          assigneeUsername is String?
+              ? assigneeUsername
+              : this.assigneeUsername,
     );
   }
 }

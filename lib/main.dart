@@ -11,6 +11,7 @@ import 'package:window_manager/window_manager.dart';
 import 'package:vka_chat_ng/theme.dart';
 import 'package:vka_chat_ng/app/translations/app_translations.dart';
 import 'package:vka_chat_ng/app/routes/app_pages.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,6 +44,9 @@ Future<void> main() async {
     await windowManager.center();
     await windowManager.show();
   });
+
+  // Инициализируй данные для локалей (например, русской 'ru')
+  await initializeDateFormatting('ru', null);
 
   runApp(
     GetMaterialApp(

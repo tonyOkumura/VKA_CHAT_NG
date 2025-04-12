@@ -4,9 +4,10 @@ import 'package:intl/intl.dart'; // Для форматирования дат
 import 'package:vka_chat_ng/app/modules/tasks/widgets/create_edit_task_dialog_content.dart';
 import 'package:vka_chat_ng/app/widgets/main_layout.dart';
 import '../controllers/tasks_controller.dart';
-import '../../../data/models/task_model.dart'; // Импорт модели задачи
+import '../../../data/models/task_model.dart'; // TaskModel реализует KanbanBoardGroupItem
 import 'package:vka_chat_ng/app/routes/app_pages.dart'; // <-- Добавь импорт роутов
 import 'dart:async'; // <-- Импорт для Timer (debounce)
+// Для firstWhereOrNull
 
 class TasksView extends GetView<TasksController> {
   TasksView({super.key});
@@ -55,24 +56,27 @@ class TasksView extends GetView<TasksController> {
           title: const Text('Задачи'),
           centerTitle: true,
           actions: [
-            // --- Кнопка сброса теперь проверяет все фильтры ---
+            // --- НОВАЯ КНОПКА КАЛЕНДАРЯ ---
+            IconButton(
+              icon: const Icon(Icons.calendar_month_outlined),
+              onPressed: () {
+                // Переходим на новый маршрут календаря
+                Get.toNamed(Routes.TASK_CALENDAR);
+              },
+              tooltip: 'Календарь задач',
+            ),
+            // --- Кнопка сброса (убираем проверку statusFilter) ---
             Obx(
               () => AnimatedOpacity(
                 opacity:
-                    (controller.statusFilter.value != null ||
-                            controller.searchTerm.value != null ||
-                            controller
-                                .assignedToMeFilter
-                                .value) // <-- Проверяем новый фильтр
+                    (controller.searchTerm.value != null ||
+                            controller.assignedToMeFilter.value)
                         ? 1.0
                         : 0.0,
                 duration: const Duration(milliseconds: 200),
                 child:
-                    (controller.statusFilter.value != null ||
-                            controller.searchTerm.value != null ||
-                            controller
-                                .assignedToMeFilter
-                                .value) // <-- Проверяем новый фильтр
+                    (controller.searchTerm.value != null ||
+                            controller.assignedToMeFilter.value)
                         ? IconButton(
                           icon: const Icon(Icons.filter_alt_off_outlined),
                           onPressed: _clearSearchAndFilter,
@@ -83,7 +87,7 @@ class TasksView extends GetView<TasksController> {
             ),
             IconButton(
               icon: const Icon(Icons.refresh),
-              onPressed: () => controller.fetchTasks(), // Загрузка с сервера
+              onPressed: () => controller.fetchTasks(),
               tooltip: 'Обновить задачи',
             ),
           ],
@@ -151,9 +155,7 @@ class TasksView extends GetView<TasksController> {
                                 : theme.colorScheme.onSurfaceVariant,
                       ),
                       label: const Text('Мне'),
-                      onPressed:
-                          controller
-                              .toggleAssignedToMeFilter, // Переключаем фильтр
+                      onPressed: controller.toggleAssignedToMeFilter,
                       backgroundColor:
                           controller.assignedToMeFilter.value
                               ? theme.colorScheme.secondaryContainer
@@ -166,61 +168,10 @@ class TasksView extends GetView<TasksController> {
                       ),
                       tooltip: 'Показать только назначенные мне задачи',
                       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      visualDensity: VisualDensity.compact, // Делаем компактнее
+                      visualDensity: VisualDensity.compact,
                       side: BorderSide(
                         color: theme.dividerColor.withOpacity(0.2),
-                      ), // Небольшая рамка
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  // --- Фильтр по статусу ---
-                  Obx(
-                    () => DropdownButton<String>(
-                      value: controller.statusFilter.value,
-                      hint: const Tooltip(
-                        message: 'Фильтр по статусу',
-                        child: Icon(Icons.filter_list),
                       ),
-                      icon:
-                          const SizedBox.shrink(), // Скрываем стандартную иконку
-                      underline:
-                          const SizedBox.shrink(), // Скрываем подчеркивание
-                      isDense: true,
-                      items: [
-                        // Опция "Все статусы"
-                        const DropdownMenuItem<String>(
-                          value: null, // null значение для "все"
-                          child: Text('Все статусы'),
-                        ),
-                        // Остальные статусы из контроллера
-                        ...controller.statusOptions.map((status) {
-                          return DropdownMenuItem<String>(
-                            value: status,
-                            child: Text(status), // TODO: Локализация
-                          );
-                        }).toList(),
-                      ],
-                      onChanged: (value) {
-                        controller.applyStatusFilter(value); // Применяем фильтр
-                      },
-                      selectedItemBuilder: (BuildContext context) {
-                        // Показываем только иконку, если выбран фильтр
-                        return [
-                          const DropdownMenuItem<String>(
-                            value: null,
-                            child: Icon(Icons.filter_list),
-                          ),
-                          ...controller.statusOptions.map((status) {
-                            return DropdownMenuItem<String>(
-                              value: status,
-                              child: Tooltip(
-                                message: 'Фильтр: $status',
-                                child: const Icon(Icons.filter_list_alt),
-                              ),
-                            );
-                          }).toList(),
-                        ];
-                      },
                     ),
                   ),
                 ],
@@ -229,118 +180,305 @@ class TasksView extends GetView<TasksController> {
           ),
         ),
         body: Obx(() {
-          // --- Индикатор загрузки поверх списка ---
-          return Stack(
-            // Используем Stack для наложения индикатора
-            children: [
-              if (controller.isLoading.value &&
-                  controller.filteredTaskList.isNotEmpty)
-                const Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: LinearProgressIndicator(minHeight: 2),
+          // --- Состояния загрузки и ошибки ---
+          // Проверяем isLoading и основной список taskList для начальной загрузки
+          if (controller.isLoading.value && controller.taskList.isEmpty) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (controller.errorMessage.value != null) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      color: Colors.red,
+                      size: 48,
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Ошибка: ${controller.errorMessage.value}',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.red.shade800),
+                    ),
+                    const SizedBox(height: 10),
+                    ElevatedButton(
+                      onPressed: () => controller.fetchTasks(),
+                      child: const Text('Попробовать снова'),
+                    ),
+                  ],
                 ),
+              ),
+            );
+          }
 
-              // --- Основной контент (загрузка, ошибка, пустой список, список) ---
-              if (controller.isLoading.value &&
-                  controller.filteredTaskList.isEmpty)
-                const Center(child: CircularProgressIndicator())
-              else if (controller.errorMessage.value != null)
-                Center(
-                  // ... виджет ошибки ...
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
+          // --- Проверка на пустой список ПОСЛЕ применения фильтров ---
+          // Считаем общее кол-во задач во всех колонках
+          final totalFilteredTasks = controller.tasksByStatus.values.fold<int>(
+            0,
+            (sum, list) => sum + list.length,
+          );
+          if (!controller.isLoading.value && totalFilteredTasks == 0) {
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    // Иконка зависит от того, применены ли фильтры
+                    (controller.searchTerm.value != null ||
+                            controller.assignedToMeFilter.value)
+                        ? Icons.filter_alt_off_outlined
+                        : Icons
+                            .space_dashboard_outlined, // Иконка для пустой доски
+                    size: 48,
+                    color: Colors.grey,
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    // Текст зависит от фильтров
+                    (controller.searchTerm.value != null ||
+                            controller.assignedToMeFilter.value)
+                        ? 'Задачи не найдены'
+                        : 'Задач пока нет',
+                  ),
+                  const SizedBox(height: 10),
+                  // Кнопка сброса, если фильтры применены и доска пуста
+                  if (controller.searchTerm.value != null ||
+                      controller.assignedToMeFilter.value)
+                    ElevatedButton(
+                      onPressed: _clearSearchAndFilter,
+                      child: const Text('Сбросить фильтры'),
+                    )
+                  else // Кнопка создания, если фильтров нет и доска пуста
+                    ElevatedButton(
+                      onPressed: () => _showCreateTaskDialog(context, null),
+                      child: const Text('Создать задачу'),
+                    ),
+                ],
+              ),
+            );
+          }
+
+          // --- НОВАЯ СТРУКТУРА: ГОРИЗОНТАЛЬНЫЙ LISTVIEW КОЛОНОК ---
+          return ListView.builder(
+            scrollDirection:
+                Axis.horizontal, // Горизонтальная прокрутка колонок
+            padding: const EdgeInsets.all(8.0),
+            itemCount:
+                controller
+                    .statusOptions
+                    .length, // Количество колонок = количество статусов
+            itemBuilder: (context, index) {
+              final currentColumnStatus =
+                  controller.statusOptions[index]; // Статус текущей колонки
+              final tasksInGroup =
+                  controller.tasksByStatus[currentColumnStatus] ??
+                  <TaskModel>[].obs;
+
+              // --- ВИДЖЕТ КОЛОНКИ ---
+              // Оборачиваем в DragTarget, чтобы колонка могла принимать задачи
+              return DragTarget<TaskModel>(
+                // Указываем, что принимаем TaskModel
+                builder: (context, candidateData, rejectedData) {
+                  // candidateData - список TaskModel, которые сейчас над целью (обычно один)
+                  final bool isHovering =
+                      candidateData
+                          .isNotEmpty; // true, если что-то тащат над этой колонкой
+
+                  return Container(
+                    width: 300,
+                    margin: const EdgeInsets.symmetric(horizontal: 8.0),
+                    decoration: BoxDecoration(
+                      color:
+                          isHovering
+                              ? theme.colorScheme.primaryContainer.withOpacity(
+                                0.3,
+                              ) // Подсветка при наведении
+                              : theme.scaffoldBackgroundColor.withOpacity(0.8),
+                      borderRadius: BorderRadius.circular(8.0),
+                      border: Border.all(
+                        color:
+                            isHovering
+                                ? theme
+                                    .colorScheme
+                                    .primary // Яркая рамка при наведении
+                                : theme.dividerColor.withOpacity(0.2),
+                        width:
+                            isHovering ? 2.0 : 1.0, // Толще рамка при наведении
+                      ),
+                    ),
                     child: Column(
-                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Icon(
-                          Icons.error_outline,
-                          color: Colors.red,
-                          size: 48,
+                        // --- ЗАГОЛОВОК КОЛОНКИ ---
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                          child: Row(
+                            children: [
+                              Text(
+                                "${_localizeStatus(currentColumnStatus).toUpperCase()} (${tasksInGroup.length})",
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              const Spacer(),
+                              // Можно добавить иконку меню для колонки, если нужно
+                            ],
+                          ),
                         ),
-                        const SizedBox(height: 10),
-                        Text(
-                          'Ошибка: ${controller.errorMessage.value}',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.red.shade800),
+                        const Divider(height: 1),
+
+                        // --- СПИСОК КАРТОЧЕК ВНУТРИ КОЛОНКИ ---
+                        Expanded(
+                          child: ListView.builder(
+                            padding: const EdgeInsets.all(8.0),
+                            itemCount: tasksInGroup.length,
+                            itemBuilder: (context, itemIndex) {
+                              final TaskModel task = tasksInGroup[itemIndex];
+
+                              // --- Оборачиваем карточку в Draggable ---
+                              return Draggable<TaskModel>(
+                                data: task, // Передаем всю модель задачи
+                                feedback: Material(
+                                  // Обертка для тени и стиля
+                                  elevation: 4.0,
+                                  color:
+                                      Colors
+                                          .transparent, // Прозрачный фон под карточкой
+                                  borderRadius: BorderRadius.circular(8.0),
+                                  child: Opacity(
+                                    // Делаем перетаскиваемый виджет полупрозрачным
+                                    opacity: 0.75,
+                                    child: SizedBox(
+                                      // Ограничиваем ширину перетаскиваемого элемента
+                                      width: 284, // Чуть меньше ширины колонки
+                                      child: TaskCard(task: task),
+                                    ),
+                                  ),
+                                ),
+                                childWhenDragging: Opacity(
+                                  // Плейсхолдер на месте перетаскиваемой карточки
+                                  opacity: 0.3,
+                                  child: TaskCard(
+                                    task: task,
+                                  ), // Можно сделать просто SizedBox с высотой карты
+                                ),
+                                // child - это то, что отображается обычно
+                                child: Obx(() {
+                                  final bool isUpdating = controller
+                                      .updatingTaskIds
+                                      .contains(task.id);
+                                  return Stack(
+                                    children: [
+                                      TaskCard(
+                                        task: task,
+                                        onTap:
+                                            isUpdating
+                                                ? null
+                                                : () => Get.toNamed(
+                                                  Routes.TASK_DETAILS,
+                                                  arguments: task.id,
+                                                ),
+                                      ),
+                                      if (isUpdating)
+                                        Positioned.fill(
+                                          /* ... индикатор без изменений ... */
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              color: Colors.black.withOpacity(
+                                                0.3,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(8.0),
+                                            ),
+                                            child: const Center(
+                                              child: SizedBox(
+                                                width: 24,
+                                                height: 24,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 3,
+                                                      color: Colors.white,
+                                                    ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  );
+                                }),
+                              );
+                            },
+                          ),
                         ),
-                        const SizedBox(height: 10),
-                        ElevatedButton(
-                          onPressed: () => controller.fetchTasks(),
-                          child: const Text('Попробовать снова'),
+
+                        // --- ФУТЕР КОЛОНКИ (КНОПКА ДОБАВИТЬ) ---
+                        KanbanListFooter(
+                          onAddTask:
+                              () => _showCreateTaskDialog(
+                                context,
+                                currentColumnStatus,
+                              ),
                         ),
                       ],
                     ),
-                  ),
-                )
-              else if (controller.filteredTaskList.isEmpty)
-                Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        // Разная иконка в зависимости от того, применены ли фильтры
-                        (controller.statusFilter.value != null ||
-                                controller.searchTerm.value != null ||
-                                controller.assignedToMeFilter.value)
-                            ? Icons.filter_alt_off_outlined
-                            : Icons.inbox_outlined,
-                        size: 48,
-                        color: Colors.grey,
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        // Разный текст
-                        (controller.statusFilter.value != null ||
-                                controller.searchTerm.value != null ||
-                                controller.assignedToMeFilter.value)
-                            ? 'Задачи не найдены'
-                            : 'Задач пока нет',
-                      ),
-                      const SizedBox(height: 10),
-                      // Кнопка сброса фильтров, если они применены и список пуст
-                      if (controller.statusFilter.value != null ||
-                          controller.searchTerm.value != null ||
-                          controller.assignedToMeFilter.value)
-                        ElevatedButton(
-                          onPressed: _clearSearchAndFilter,
-                          child: const Text('Сбросить фильтры'),
-                        )
-                      else
-                        ElevatedButton(
-                          onPressed: () => _showCreateTaskDialog(context),
-                          child: const Text('Создать задачу'),
-                        ),
-                    ],
-                  ),
-                )
-              else
-                RefreshIndicator(
-                  onRefresh: () => controller.fetchTasks(showLoading: false),
-                  child: ListView.builder(
-                    itemCount: controller.filteredTaskList.length,
-                    itemBuilder: (context, index) {
-                      final task = controller.filteredTaskList[index];
-                      return TaskListItem(task: task);
-                    },
-                  ),
-                ),
-            ],
+                  );
+                },
+                // --- Обработка принятия Draggable ---
+                onWillAccept: (TaskModel? data) {
+                  // Проверяем, что данные не null и что задача не из этой же колонки
+                  // (перетаскивание внутри колонки пока не обрабатываем)
+                  if (data != null && data.status != currentColumnStatus) {
+                    print(
+                      "Target $currentColumnStatus WILL ACCEPT task ${data.id} from ${data.status}",
+                    );
+                    return true; // Готовы принять
+                  }
+                  print(
+                    "Target $currentColumnStatus WILL REJECT task ${data?.id} from ${data?.status}",
+                  );
+                  return false; // Не принимаем (либо null, либо из той же колонки)
+                },
+                onAccept: (TaskModel task) {
+                  // Вызывается, когда карточку бросили на эту колонку
+                  print(
+                    "Target $currentColumnStatus ACCEPTED task ${task.id} from ${task.status}",
+                  );
+                  // Вызываем метод контроллера для обновления статуса
+                  controller.requestStatusUpdate(task.id, currentColumnStatus);
+                },
+                onLeave: (TaskModel? data) {
+                  // Вызывается, когда карточку убрали с этой колонки
+                  print("Target $currentColumnStatus: task ${data?.id} LEFT");
+                },
+              );
+            },
           );
+          // --- КОНЕЦ НОВОЙ СТРУКТУРЫ ---
         }),
         floatingActionButton: FloatingActionButton(
-          onPressed: () => _showCreateTaskDialog(context),
-          tooltip: 'Создать задачу',
-          child: const Icon(Icons.add),
+          onPressed: null, // Делаем неактивным или убираем совсем
+          backgroundColor: Colors.transparent, // Скрываем
+          elevation: 0,
         ),
       ),
     );
   }
 
   // Метод для открытия диалога создания
-  void _showCreateTaskDialog(BuildContext context) {
+  void _showCreateTaskDialog(BuildContext context, String? initialStatus) {
     controller.initDialogForCreate();
+    if (initialStatus != null) {
+      controller.dialogSelectedStatus.value = initialStatus;
+    }
+
     Get.dialog(
       AlertDialog(
         title: const Text('Новая задача'),
@@ -348,19 +486,34 @@ class TasksView extends GetView<TasksController> {
         actions: [
           TextButton(onPressed: () => Get.back(), child: const Text('Отмена')),
           Obx(
-            () => ElevatedButton(
+            () => FilledButton.icon(
+              icon:
+                  controller.isDialogLoading.value
+                      ? SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Theme.of(context).colorScheme.onPrimary,
+                        ),
+                      )
+                      : Icon(
+                        controller.isDialogEditing
+                            ? Icons.save_outlined
+                            : Icons.add_outlined,
+                        size: 18,
+                      ),
+              label: Text(controller.isDialogEditing ? 'Сохранить' : 'Создать'),
               onPressed:
                   controller.isDialogLoading.value
                       ? null
                       : controller.saveTaskFromDialog,
-              child:
-                  controller.isDialogLoading.value
-                      ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                      : const Text('Создать'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
+              ),
             ),
           ),
         ],
@@ -370,267 +523,408 @@ class TasksView extends GetView<TasksController> {
       // controller.initDialogForCreate(); // Или другой метод очистки
     });
   }
+
+  // Вспомогательная функция для локализации статуса (можно вынести)
+  String _localizeStatus(String status) {
+    switch (status) {
+      case 'open':
+        return 'Открытые';
+      case 'in_progress':
+        return 'В работе';
+      case 'done':
+        return 'Готово';
+      case 'closed':
+        return 'Закрытые';
+      default:
+        return status;
+    }
+  }
+
+  // Вспомогательная функция для цвета статуса (пример)
+  Color _getStatusColor(String status, ThemeData theme) {
+    switch (status) {
+      case 'open':
+        return Colors.blue.shade100;
+      case 'in_progress':
+        return Colors.orange.shade100;
+      case 'done':
+        return Colors.green.shade100;
+      case 'closed':
+        return Colors.grey.shade300;
+      default:
+        return theme.colorScheme.surfaceVariant;
+    }
+  }
 }
 
-// --- Виджет для отображения одной задачи в списке ---
-class TaskListItem extends StatelessWidget {
+// --- Виджет для карточки задачи ---
+class TaskCard extends StatelessWidget {
   final TaskModel task;
-  const TaskListItem({super.key, required this.task});
+  final VoidCallback? onTap;
 
-  // Вспомогательная функция для получения цвета приоритета
-  Color _getPriorityColor(int priority) {
+  const TaskCard({super.key, required this.task, this.onTap});
+
+  // --- Цвета и иконки приоритета (можно настроить) ---
+  Color _getPriorityBorderColor(int priority, ThemeData theme) {
     switch (priority) {
       case 1:
-        return Colors.red; // Высокий
+        return Colors.red.shade300;
       case 2:
-        return Colors.orange; // Средний
+        return Colors.orange.shade300;
       case 3:
-        return Colors.green; // Низкий
+        return Colors.blue.shade300; // Низкий - синий?
       default:
-        return Colors.grey; // Неизвестный
+        return theme.dividerColor;
     }
   }
 
-  // Вспомогательная функция для получения иконки статуса
-  IconData _getStatusIcon(String status) {
-    switch (status.toLowerCase()) {
-      case 'open':
-        return Icons.radio_button_unchecked;
-      case 'in_progress':
-        return Icons.sync_outlined;
-      case 'done':
-        return Icons.check_circle_outline;
-      case 'closed':
-        return Icons.cancel_outlined;
+  IconData _getPriorityIcon(int priority) {
+    switch (priority) {
+      case 1:
+        return Icons
+            .keyboard_double_arrow_up_rounded; // Двойная стрелка для высокого
+      case 2:
+        return Icons.keyboard_arrow_up_rounded; // Одинарная для среднего
+      case 3:
+        return Icons.keyboard_arrow_down_rounded; // Вниз для низкого
       default:
-        return Icons.help_outline;
+        return Icons.remove_rounded;
     }
   }
 
-  // Метод для открытия диалога редактирования
-  void _showEditTaskDialog(BuildContext context, TaskModel task) {
-    final TasksController controller = Get.find(); // Получаем контроллер здесь
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final TasksController? controller =
+        Get.isRegistered<TasksController>()
+            ? Get.find<TasksController>()
+            : null;
+    final Color userColor =
+        controller?.getUserColor(task.assigneeId ?? '') ?? Colors.grey;
+    final Color priorityBorderColor = _getPriorityBorderColor(
+      task.priority,
+      theme,
+    );
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8.0),
+      elevation: 1.0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8.0),
+        child: Padding(
+          padding: const EdgeInsets.only(
+            left: 12.0,
+            top: 10.0,
+            bottom: 12.0,
+            right: 4.0,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // --- Строка с заголовком и Меню ---
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // --- Заголовок ---
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 2.0),
+                      child: Text(
+                        task.title,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          height: 1.3,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                  // --- КНОПКА МЕНЮ ---
+                  if (controller != null)
+                    SizedBox(
+                      width: 36,
+                      height: 36,
+                      child: PopupMenuButton<String>(
+                        tooltip: 'Действия',
+                        icon: const Icon(Icons.more_vert, size: 20),
+                        padding: EdgeInsets.zero,
+                        itemBuilder:
+                            (BuildContext context) => <PopupMenuEntry<String>>[
+                              const PopupMenuItem<String>(
+                                value: 'edit',
+                                child: ListTile(
+                                  leading: Icon(Icons.edit_outlined, size: 20),
+                                  title: Text('Изменить'),
+                                  dense: true,
+                                  contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 8.0,
+                                  ),
+                                ),
+                              ),
+                              const PopupMenuItem<String>(
+                                value: 'delete',
+                                child: ListTile(
+                                  leading: Icon(
+                                    Icons.delete_outline,
+                                    size: 20,
+                                    color: Colors.red,
+                                  ),
+                                  title: Text(
+                                    'Удалить',
+                                    style: TextStyle(color: Colors.red),
+                                  ),
+                                  dense: true,
+                                  contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 8.0,
+                                  ),
+                                ),
+                              ),
+                            ],
+                        onSelected: (String value) {
+                          if (value == 'edit') {
+                            _showEditTaskDialog(context, controller, task);
+                          } else if (value == 'delete') {
+                            _confirmDeleteTask(context, controller, task);
+                          }
+                        },
+                      ),
+                    ),
+                ],
+              ),
+              // --- Описание (если есть) ---
+              if (task.description != null && task.description!.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  task.description!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    height: 1.3,
+                  ),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+              const SizedBox(height: 12),
+              // --- Нижняя строка: Приоритет, Дата, Исполнитель ---
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // --- Приоритет и Дата ---
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Tooltip(
+                        message:
+                            'Приоритет: ${controller?.priorityOptions[task.priority] ?? task.priority}',
+                        child: Icon(
+                          _getPriorityIcon(task.priority),
+                          color: priorityBorderColor,
+                          size: 20,
+                        ),
+                      ),
+                      // --- Дата выполнения ---
+                      if (task.dueDate != null) ...[
+                        const SizedBox(width: 8),
+                        Icon(
+                          Icons.calendar_today_outlined,
+                          size: 14,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          DateFormat('dd MMM', 'ru').format(task.dueDate!),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+
+                  // --- Аватар исполнителя ---
+                  if (task.assigneeId != null)
+                    Tooltip(
+                      message: task.assigneeUsername ?? task.assigneeId,
+                      child: CircleAvatar(
+                        backgroundColor: userColor.withOpacity(0.8),
+                        foregroundColor: Colors.white,
+                        radius: 14,
+                        child: Text(
+                          task.assigneeUsername != null &&
+                                  task.assigneeUsername!.isNotEmpty
+                              ? task.assigneeUsername![0].toUpperCase()
+                              : '?',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    const SizedBox(height: 28, width: 28),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- Вспомогательные методы для вызова диалогов из TaskCard ---
+
+  // Показ диалога редактирования
+  void _showEditTaskDialog(
+    BuildContext context,
+    TasksController controller,
+    TaskModel task,
+  ) {
     controller.initDialogForEdit(task);
     Get.dialog(
       AlertDialog(
-        title: const Text('Редактировать задачу'),
+        title: const Text('Изменить задачу'),
         content: CreateEditTaskDialogContent(controller: controller),
         actions: [
           TextButton(onPressed: () => Get.back(), child: const Text('Отмена')),
           Obx(
-            () => ElevatedButton(
+            () => FilledButton.icon(
+              icon:
+                  controller.isDialogLoading.value
+                      ? SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Theme.of(context).colorScheme.onPrimary,
+                        ),
+                      )
+                      : Icon(
+                        controller.isDialogEditing
+                            ? Icons.save_outlined
+                            : Icons.add_outlined,
+                        size: 18,
+                      ),
+              label: Text(controller.isDialogEditing ? 'Сохранить' : 'Создать'),
               onPressed:
                   controller.isDialogLoading.value
                       ? null
                       : controller.saveTaskFromDialog,
-              child:
-                  controller.isDialogLoading.value
-                      ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                      : const Text('Сохранить'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
+              ),
             ),
+          ),
+        ],
+      ),
+    ).then((_) {
+      controller.initDialogForCreate();
+    });
+  }
+
+  // Показ диалога подтверждения удаления
+  void _confirmDeleteTask(
+    BuildContext context,
+    TasksController controller,
+    TaskModel task,
+  ) {
+    Get.dialog(
+      AlertDialog(
+        title: const Text('Удалить задачу?'),
+        content: Text(
+          'Вы уверены, что хотите удалить задачу "${task.title}"? Это действие необратимо.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Get.back(), child: const Text('Отмена')),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            onPressed: () async {
+              Get.back();
+              await controller.deleteTask(task.id);
+            },
+            child: const Text('Удалить'),
           ),
         ],
       ),
     );
   }
+}
+
+// --- Виджет Заголовка Колонки (ListHeader) ---
+class KanbanListHeader extends StatelessWidget {
+  final String title;
+  final int count;
+  // final Color stateColor; // Можно добавить цвет статуса, если нужно
+
+  const KanbanListHeader({
+    super.key,
+    required this.title,
+    required this.count,
+    // required this.stateColor,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final dateFormat = DateFormat('dd.MM.yyyy HH:mm'); // Форматтер даты
-    final TasksController controller = Get.find(); // Для цвета
-
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-      child: ListTile(
-        leading: Tooltip(
-          message: 'Приоритет: ${task.priority}',
-          child: Icon(Icons.label, color: _getPriorityColor(task.priority)),
-        ),
-        title: Text(
-          task.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontWeight: FontWeight.w500),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (task.description != null && task.description!.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 2.0, bottom: 2.0),
-                child: Text(
-                  task.description!,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: Colors.grey.shade600),
-                ),
-              ),
-            Row(
-              children: [
-                Icon(
-                  _getStatusIcon(task.status),
-                  size: 16,
-                  color: Colors.grey.shade700,
-                ),
-                const SizedBox(width: 4),
-                Text(task.status), // Можно будет локализовать
-                const SizedBox(width: 8), // Отступ
-                // --- Отображение ОДНОГО исполнителя ---
-                if (task.assigneeId != null && task.assigneeUsername != null)
-                  Expanded(
-                    // Занимает доступное место до Spacer
-                    child: Tooltip(
-                      message: 'Исполнитель: ${task.assigneeUsername}',
-                      child: Chip(
-                        avatar: CircleAvatar(
-                          backgroundColor: controller.getUserColor(
-                            task.assigneeId!,
-                          ),
-                          foregroundColor: Colors.white,
-                          radius: 7,
-                          child: Text(
-                            task.assigneeUsername!.isNotEmpty
-                                ? task.assigneeUsername![0].toUpperCase()
-                                : '?',
-                            style: const TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        label: Text(
-                          task.assigneeUsername!,
-                          style: const TextStyle(fontSize: 11),
-                          overflow:
-                              TextOverflow
-                                  .ellipsis, // Обрезаем, если не влезает
-                        ),
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        visualDensity: VisualDensity.compact,
-                        padding: const EdgeInsets.only(left: 2, right: 4),
-                        labelPadding: const EdgeInsets.only(left: 3),
-                      ),
-                    ),
-                  )
-                else
-                  const Expanded(
-                    // Занимает место, чтобы дата прижалась вправо
-                    child: Text(
-                      ' • Не назначен',
-                      style: TextStyle(fontSize: 11, color: Colors.grey),
-                    ),
-                  ),
-                // ------------------------------------
-                if (task.dueDate != null)
-                  Tooltip(
-                    message: 'Срок выполнения',
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.event_busy_outlined,
-                          size: 16,
-                          color: Colors.grey.shade700,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          DateFormat('dd.MM.yy').format(task.dueDate!),
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
+    final theme = Theme.of(context);
+    return Padding(
+      // Добавляем внешние отступы
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Text(
+            "${title.toUpperCase()}  (${count})", // Добавим пару пробелов для воздуха
+            style: theme.textTheme.titleSmall?.copyWith(
+              // Стиль titleSmall
+              color: theme.colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w600, // Чуть жирнее
+              letterSpacing: 0.5, // Небольшое разряжение
             ),
-            Padding(
-              padding: const EdgeInsets.only(top: 4.0),
-              child: Text(
-                'Создал: ${task.creatorUsername ?? task.creatorId} (${dateFormat.format(task.createdAt.toLocal())})', // Показываем локальное время
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
-              ),
-            ),
-          ],
-        ),
-        trailing: PopupMenuButton<String>(
-          onSelected: (String result) {
-            if (result == 'delete') {
-              _showDeleteConfirmation(context, task.id);
-            } else if (result == 'edit') {
-              // --- Открываем диалог редактирования ---
-              _showEditTaskDialog(context, task); // Передаем задачу
-            }
-          },
-          itemBuilder:
-              (BuildContext context) => <PopupMenuEntry<String>>[
-                const PopupMenuItem<String>(
-                  value: 'edit',
-                  child: ListTile(
-                    leading: Icon(Icons.edit_outlined),
-                    title: Text('Редактировать'),
-                  ),
-                ),
-                // TODO: Можно добавить другие действия (изменить статус, назначить и т.д.)
-                const PopupMenuItem<String>(
-                  value: 'delete',
-                  child: ListTile(
-                    leading: Icon(Icons.delete_outline, color: Colors.red),
-                    title: Text('Удалить', style: TextStyle(color: Colors.red)),
-                  ),
-                ),
-              ],
-          icon: const Icon(Icons.more_vert),
-        ),
-        onTap: () {
-          // --- Переход к детальному просмотру задачи ---
-          Get.toNamed(Routes.TASK_DETAILS, arguments: task.id); // Передаем ID
-        },
+          ),
+          const Spacer(),
+        ],
       ),
     );
   }
+}
 
-  // Диалог подтверждения удаления
-  void _showDeleteConfirmation(BuildContext context, String taskId) {
-    final TasksController controller = Get.find(); // Получаем контроллер
-    Get.defaultDialog(
-      title: "Удалить задачу?",
-      middleText:
-          "Вы уверены, что хотите удалить эту задачу? Это действие необратимо.",
-      confirm: TextButton(
-        style: TextButton.styleFrom(foregroundColor: Colors.red),
-        onPressed: () async {
-          Get.back(); // Закрываем диалог
-          bool success = await controller.deleteTask(
-            taskId,
-          ); // Вызываем удаление
-          if (success) {
-            Get.snackbar(
-              'Успех',
-              'Задача успешно удалена',
-              snackPosition: SnackPosition.BOTTOM,
-            );
-          } else {
-            // Ошибка уже должна быть в controller.errorMessage, но можно показать и здесь
-            Get.snackbar(
-              'Ошибка',
-              controller.errorMessage.value ?? 'Не удалось удалить задачу',
-              snackPosition: SnackPosition.BOTTOM,
-              backgroundColor: Colors.red,
-              colorText: Colors.white,
-            );
-          }
-        },
-        child: const Text("Удалить"),
-      ),
-      cancel: TextButton(
-        onPressed: () => Get.back(),
-        child: const Text("Отмена"),
+// --- Виджет Футера Колонки (ListFooter) ---
+class KanbanListFooter extends StatelessWidget {
+  final VoidCallback? onAddTask;
+
+  const KanbanListFooter({super.key, this.onAddTask});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // Используем TextButton.icon для Material стиля
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 8.0,
+        vertical: 8.0,
+      ), // Отступы вокруг кнопки
+      child: TextButton.icon(
+        style: TextButton.styleFrom(
+          foregroundColor: theme.colorScheme.primary,
+          minimumSize: const Size(double.infinity, 40), // Растянем по ширине
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8.0), // Скругление как у Card
+            // Можно добавить слабую рамку, если хочется
+            // side: BorderSide(color: theme.colorScheme.outlineVariant.withOpacity(0.5)),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+        ),
+        icon: const Icon(Icons.add_circle_outline, size: 18),
+        label: const Text("Добавить задачу"),
+        onPressed: onAddTask,
       ),
     );
   }

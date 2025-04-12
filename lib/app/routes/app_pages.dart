@@ -19,6 +19,8 @@ import '../modules/tasks/views/tasks_view.dart';
 
 import '../modules/tasks/bindings/task_details_binding.dart';
 import '../modules/tasks/views/task_details_view.dart';
+import '../modules/tasks/bindings/task_calendar_binding.dart';
+import '../modules/tasks/views/task_calendar_view.dart';
 
 part 'app_routes.dart';
 
@@ -72,6 +74,11 @@ class AppPages {
           name: _Paths.TASK_DETAILS,
           page: () => const TaskDetailsView(),
           binding: TaskDetailsBinding(),
+        ),
+        GetPage(
+          name: _Paths.TASK_CALENDAR,
+          page: () => const TaskCalendarView(),
+          binding: TaskCalendarBinding(),
         ),
       ],
     ),

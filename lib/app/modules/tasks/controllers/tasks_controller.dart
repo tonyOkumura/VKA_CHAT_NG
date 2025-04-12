@@ -6,9 +6,11 @@ import 'package:vka_chat_ng/app/data/models/task_model.dart';
 import 'package:vka_chat_ng/app/data/services/task_api_service.dart';
 import 'package:vka_chat_ng/app/data/models/contact_model.dart';
 import 'package:vka_chat_ng/app/modules/contacts/controllers/contacts_controller.dart';
-import 'package:vka_chat_ng/app/modules/chats/controllers/chats_controller.dart';
-import 'package:vka_chat_ng/app/modules/tasks/widgets/assignee_selection_dialog.dart';
+// import 'package:vka_chat_ng/app/modules/chats/controllers/chats_controller.dart'; // <-- Удаляем или комментируем эту строку
 import 'package:vka_chat_ng/app/modules/tasks/widgets/single_assignee_selection_dialog.dart';
+import 'package:collection/collection.dart'; // Для firstWhereOrNull
+// import 'package:kanban_board/kanban_board.dart'; // <-- УДАЛИТЬ
+import 'package:dio/dio.dart'; // <-- Импорт для DioError
 
 class TasksController extends GetxController {
   final TaskApiService _apiService = Get.find<TaskApiService>();
@@ -19,12 +21,12 @@ class TasksController extends GetxController {
   // --- Основное состояние ---
   final RxList<TaskModel> taskList =
       <TaskModel>[].obs; // Полный список с сервера
-  final RxList<TaskModel> filteredTaskList =
-      <TaskModel>[].obs; // Отфильтрованный список для UI
+  // --- НОВОЕ: Задачи, сгруппированные по статусу для Kanban ---
+  final RxMap<String, RxList<TaskModel>> tasksByStatus =
+      <String, RxList<TaskModel>>{}.obs;
   final RxBool isLoading = false.obs;
   final RxnString errorMessage = RxnString(null);
   // --- Фильтры ---
-  final RxnString statusFilter = RxnString(null);
   final RxnString searchTerm = RxnString(null);
   final RxBool assignedToMeFilter = false.obs; // <-- Фильтр "Назначенные мне"
 
@@ -51,6 +53,10 @@ class TasksController extends GetxController {
   };
   bool get isDialogEditing => dialogEditingTaskId.value != null;
 
+  final RxBool isUpdatingStatus = false.obs; // Индикатор загрузки для статуса
+  final RxSet<String> updatingTaskIds =
+      <String>{}.obs; // Хранить ID задач в процессе обновления
+
   @override
   void onInit() async {
     // Делаем onInit асинхронным
@@ -73,12 +79,23 @@ class TasksController extends GetxController {
       if (_contactsController.contacts.isEmpty &&
           !_contactsController.isLoading.value) {
         print("TasksController: Contacts list is empty, fetching...");
-        _contactsController.fetchContacts();
+        // Не блокируем инициализацию задач из-за контактов
+        _contactsController.fetchContacts().catchError((e) {
+          print("Error fetching contacts during init: $e");
+          // Можно показать snackbar или просто залогировать
+        });
       }
     } else {
       print("TasksController: ContactsController not found, creating one.");
       _contactsController = Get.put(ContactsController());
-      _contactsController.fetchContacts();
+      _contactsController.fetchContacts().catchError((e) {
+        print("Error fetching contacts during init (controller created): $e");
+      });
+    }
+
+    // Инициализируем карту статусов пустыми списками
+    for (var status in statusOptions) {
+      tasksByStatus[status] = <TaskModel>[].obs;
     }
 
     fetchTasks(); // Загружаем задачи
@@ -106,7 +123,24 @@ class TasksController extends GetxController {
     descriptionDialogController.text = task.description ?? '';
     dialogSelectedStatus.value = task.status;
     dialogSelectedPriority.value = task.priority;
-    dialogSelectedDueDate.value = task.dueDate?.toLocal();
+
+    // --- ИЗМЕНЕНИЕ: Загружаем и нормализуем к UTC полуночи ---
+    // Предполагаем, что task.dueDate приходит как DateTime UTC (может быть с временем)
+    if (task.dueDate != null) {
+      // Берем год/месяц/день из пришедшей UTC даты и создаем новую UTC дату (полночь)
+      dialogSelectedDueDate.value = DateTime.utc(
+        task.dueDate!.year,
+        task.dueDate!.month,
+        task.dueDate!.day,
+      );
+    } else {
+      dialogSelectedDueDate.value = null;
+    }
+    print(
+      "Dialog Due Date initialized for edit (UTC): ${dialogSelectedDueDate.value}",
+    );
+    // ---------------------------------------------------
+
     dialogSelectedAssigneeId.value = task.assigneeId;
     if (task.assigneeId != null) {
       dialogSelectedAssignee.value = _contactsController.contacts
@@ -141,62 +175,72 @@ class TasksController extends GetxController {
       print("Error in TasksController fetchTasks: $e");
       errorMessage.value = "Ошибка загрузки задач: ${e.toString()}";
       taskList.clear(); // Очищаем списки при ошибке
-      filteredTaskList.clear();
+      tasksByStatus.forEach((key, list) => list.clear());
     } finally {
       if (showLoading) isLoading.value = false;
     }
   }
 
-  // Приватный метод для применения всех клиентских фильтров
+  // Обновленный метод фильтрации: Группирует задачи по статусам
   void _applyFilters() {
-    final String? status = statusFilter.value;
     final String? search = searchTerm.value?.toLowerCase();
     final bool assignedToMe = assignedToMeFilter.value;
 
-    // Начинаем с полного списка
-    List<TaskModel> results = List<TaskModel>.from(taskList);
-
-    // 1. Фильтр по статусу
-    if (status != null) {
-      results = results.where((task) => task.status == status).toList();
+    // Создаем временную карту для новых отфильтрованных списков
+    final Map<String, List<TaskModel>> tempTasksByStatus = {};
+    for (var status in statusOptions) {
+      tempTasksByStatus[status] = [];
     }
 
-    // 2. Фильтр "Назначенные мне"
-    if (assignedToMe) {
-      results =
-          results.where((task) => task.assigneeId == currentUserId).toList();
+    // Итерируем по полному списку задач
+    for (var task in taskList) {
+      bool passesFilter = true;
+
+      // 1. Фильтр "Назначенные мне"
+      if (assignedToMe && task.assigneeId != currentUserId) {
+        passesFilter = false;
+      }
+
+      // 2. Фильтр по поиску
+      if (passesFilter && search != null && search.isNotEmpty) {
+        final titleMatch = task.title.toLowerCase().contains(search);
+        final descriptionMatch =
+            task.description?.toLowerCase().contains(search) ?? false;
+        final assigneeMatch =
+            task.assigneeUsername?.toLowerCase().contains(search) ?? false;
+        if (!(titleMatch || descriptionMatch || assigneeMatch)) {
+          passesFilter = false;
+        }
+      }
+
+      // Если задача прошла фильтры, добавляем ее в соответствующий список статуса
+      if (passesFilter) {
+        if (tempTasksByStatus.containsKey(task.status)) {
+          tempTasksByStatus[task.status]!.add(task);
+        } else {
+          // Обработка случая, если статус задачи не соответствует стандартным колонкам
+          print(
+            "Warning: Task ${task.id} has unknown status '${task.status}'. Not adding to board.",
+          );
+        }
+      }
     }
 
-    // 3. Фильтр по поиску (название или описание)
-    if (search != null && search.isNotEmpty) {
-      results =
-          results.where((task) {
-            final titleMatch = task.title.toLowerCase().contains(search);
-            final descriptionMatch =
-                task.description?.toLowerCase().contains(search) ?? false;
-            final assigneeMatch =
-                task.assigneeUsername?.toLowerCase().contains(search) ?? false;
-            return titleMatch || descriptionMatch || assigneeMatch;
-          }).toList();
-    }
+    // Обновляем реактивные списки в tasksByStatus
+    tasksByStatus.forEach((status, reactiveList) {
+      reactiveList.assignAll(tempTasksByStatus[status]!);
+    });
 
-    // Обновляем отфильтрованный список
-    filteredTaskList.assignAll(results);
+    print(
+      "Filters applied. Task counts: ${tasksByStatus.map((k, v) => MapEntry(k, v.length))}",
+    );
   }
 
   // --- Методы для изменения фильтров ---
 
-  void applyStatusFilter(String? newStatus) {
-    if (statusFilter.value != newStatus) {
-      statusFilter.value = newStatus;
-      _applyFilters(); // Применяем фильтры
-    }
-  }
-
   void searchTasks(String? term) {
-    // Не вызываем fetchTasks, только фильтруем
     searchTerm.value = term;
-    _applyFilters(); // Применяем фильтры
+    _applyFilters();
   }
 
   // Новый метод для фильтра "Назначенные мне"
@@ -207,10 +251,6 @@ class TasksController extends GetxController {
 
   void clearFilters() {
     bool needsRefilter = false;
-    if (statusFilter.value != null) {
-      statusFilter.value = null;
-      needsRefilter = true;
-    }
     if (searchTerm.value != null) {
       searchTerm.value = null;
       needsRefilter = true;
@@ -225,7 +265,7 @@ class TasksController extends GetxController {
     }
   }
 
-  // --- Методы API для создания/обновления/удаления (без изменений) ---
+  // --- Методы API для создания/обновления/удаления ---
   // Создание задачи (вызывается из saveTaskFromDialog)
   Future<bool> createTask({
     required String title,
@@ -248,8 +288,9 @@ class TasksController extends GetxController {
         newTaskData['due_date'] =
             dueDate.toUtc().toIso8601String(); // Отправляем UTC
 
-      await _apiService.createTask(newTaskData);
-      await fetchTasks(showLoading: false); // Обновляем список после создания
+      final createdTask = await _apiService.createTask(newTaskData);
+      taskList.add(createdTask);
+      _applyFilters(); // Обновляем список после создания
       return true; // Успех
     } catch (e) {
       print("Error in TasksController createTask: $e");
@@ -264,8 +305,17 @@ class TasksController extends GetxController {
   ) async {
     dialogErrorMessage.value = null;
     try {
-      await _apiService.updateTask(taskId, updateData);
-      await fetchTasks(showLoading: false);
+      final updatedTask = await _apiService.updateTask(taskId, updateData);
+      final index = taskList.indexWhere((t) => t.id == taskId);
+      if (index != -1) {
+        taskList[index] = updatedTask;
+        _applyFilters();
+      } else {
+        print(
+          "Warning: Updated task $taskId not found in local list. Forcing refetch.",
+        );
+        await fetchTasks(showLoading: false);
+      }
       return true;
     } catch (e) {
       print("Error in TasksController updateTask: $e");
@@ -281,9 +331,7 @@ class TasksController extends GetxController {
       await _apiService.deleteTask(taskId);
       // Удаляем из обоих списков
       taskList.removeWhere((task) => task.id == taskId);
-      filteredTaskList.removeWhere(
-        (task) => task.id == taskId,
-      ); // <-- Обновляем отфильтрованный список
+      _applyFilters(); // Обновляем колонки доски
       return true;
     } catch (e) {
       print("Error in TasksController deleteTask: $e");
@@ -294,22 +342,92 @@ class TasksController extends GetxController {
     }
   }
 
+  // --- МЕТОДЫ API И ЛОГИКА ОБНОВЛЕНИЯ ---
+
+  // --- УДАЛЯЕМ или комментируем handleDragDropUpdate ---
+  /*
+  Future<void> handleDragDropUpdate(String taskId, String oldStatus, String newStatus) async {
+    // ...
+  }
+  */
+
+  // --- НОВЫЙ МЕТОД: Запрос на обновление статуса без оптимистичного UI ---
+  Future<void> requestStatusUpdate(String taskId, String newStatus) async {
+    print(
+      "--- requestStatusUpdate START --- Task ID: $taskId, New Status: $newStatus",
+    );
+    // Показываем индикатор для конкретной задачи (или глобальный)
+    updatingTaskIds.add(taskId);
+    // isUpdatingStatus.value = true; // Если нужен глобальный индикатор
+
+    try {
+      final updateData = {'status': newStatus};
+      print(
+        "  Attempting API call: _apiService.updateTask with data: $updateData",
+      );
+      await _apiService.updateTask(taskId, updateData);
+      print("  API call successful for task $taskId status to $newStatus");
+
+      // --- ВАЖНО: Перезагружаем все задачи ПОСЛЕ успеха ---
+      print("  API success, fetching all tasks to refresh board...");
+      await fetchTasks(
+        showLoading: false,
+      ); // showLoading: false, т.к. у нас свой индикатор
+      print("  Tasks fetched and board refreshed.");
+    } catch (e, stackTrace) {
+      print("!!! API call FAILED for task $taskId !!! Error: $e");
+      print("StackTrace: $stackTrace");
+      errorMessage.value = "Ошибка обновления статуса: ${e.toString()}";
+
+      // Показываем ошибку пользователю
+      String snackbarMessage = 'Не удалось обновить статус задачи.';
+      if (e is DioError && e.response?.statusCode == 403) {
+        snackbarMessage = 'Нет прав на изменение статуса этой задачи.';
+      }
+      Get.snackbar(
+        'Ошибка',
+        snackbarMessage,
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      // UI не менялся, откат не нужен.
+    } finally {
+      // Убираем индикатор для задачи (или глобальный)
+      updatingTaskIds.remove(taskId);
+      // isUpdatingStatus.value = false; // Если нужен глобальный индикатор
+      print("--- requestStatusUpdate END --- Task ID: $taskId");
+    }
+  }
+
   // --- Методы для диалога ---
 
   // Выбор даты в диалоге
   Future<void> pickDialogDueDate(BuildContext context) async {
+    // Для initialDate лучше использовать UTC текущего выбранного значения или сегодняшнюю дату
+    final DateTime initialPickerDate =
+        dialogSelectedDueDate.value?.toUtc() ?? DateTime.now().toUtc();
+
     final DateTime? pickedDate = await showDatePicker(
       context: context,
-      initialDate: dialogSelectedDueDate.value ?? DateTime.now(),
-      firstDate: DateTime.now().subtract(const Duration(days: 30)),
-      lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
+      initialDate: initialPickerDate, // Передаем UTC
+      firstDate: DateTime.utc(
+        DateTime.now().year - 1,
+        1,
+        1,
+      ), // Диапазон тоже в UTC
+      lastDate: DateTime.utc(DateTime.now().year + 5, 12, 31),
     );
+
     if (pickedDate != null) {
-      dialogSelectedDueDate.value = DateTime(
+      // pickedDate - это локальная дата (полночь) выбранного дня.
+      // Создаем DateTime в UTC для этой же даты.
+      dialogSelectedDueDate.value = DateTime.utc(
         pickedDate.year,
         pickedDate.month,
         pickedDate.day,
       );
+      print("Dialog Due Date set to (UTC): ${dialogSelectedDueDate.value}");
     }
   }
 
@@ -361,13 +479,8 @@ class TasksController extends GetxController {
           'status': dialogSelectedStatus.value,
           'priority': dialogSelectedPriority.value,
           'assignee_id': dialogSelectedAssigneeId.value,
+          'due_date': dialogSelectedDueDate.value?.toIso8601String(),
         };
-        if (dialogSelectedDueDate.value != null) {
-          updateData['due_date'] =
-              dialogSelectedDueDate.value!.toUtc().toIso8601String();
-        } else {
-          updateData['due_date'] = null;
-        }
         success = await updateTask(dialogEditingTaskId.value!, updateData);
       } else {
         success = await createTask(
@@ -399,42 +512,39 @@ class TasksController extends GetxController {
     }
   }
 
-  // Метод для получения цвета пользователя (копируем или делаем общим)
+  // Метод для получения цвета пользователя (теперь без ChatsController)
   Color getUserColor(String userId) {
-    // Пытаемся получить цвет из ChatsController, если он есть
-    try {
-      // Предполагаем, что ChatsController тоже зарегистрирован через GetX
-      final chatsController =
-          Get.find<ChatsController>(); // Нужен импорт ChatsController
-      return chatsController.getUserColor(userId);
-    } catch (e) {
-      // Если ChatsController не найден или метод не существует, используем запасной вариант
-      print(
-        "Could not get user color from ChatsController, using fallback: $e",
-      );
-      // Простой запасной вариант на основе хеша ID
-      final List<Color> fallbackColors = [
-        Colors.blue,
-        Colors.red,
-        Colors.green,
-        Colors.orange,
-        Colors.purple,
-        Colors.teal,
-      ];
-      final colorIndex = userId.hashCode % fallbackColors.length;
-      return fallbackColors[colorIndex];
+    // Используем только запасной вариант генерации цвета на основе хеша ID
+    final List<Color> fallbackColors = [
+      Colors.blue.shade300,
+      Colors.red.shade300,
+      Colors.green.shade300,
+      Colors.orange.shade300,
+      Colors.purple.shade300,
+      Colors.teal.shade300,
+      Colors.pink.shade300,
+      Colors.indigo.shade300,
+      Colors.cyan.shade300,
+      Colors.brown.shade300,
+    ]; // Можно расширить список цветов
+
+    if (userId.isEmpty) {
+      return Colors.grey.shade400; // Цвет для пустого ID
     }
+
+    // Вычисляем индекс на основе хеш-кода ID
+    final colorIndex = userId.hashCode.abs() % fallbackColors.length;
+    return fallbackColors[colorIndex];
   }
 
   @override
   void onClose() {
     taskList.close();
-    filteredTaskList.close(); // <-- Закрываем новый список
+    tasksByStatus.close();
     isLoading.close();
     errorMessage.close();
-    statusFilter.close();
     searchTerm.close();
-    assignedToMeFilter.close(); // <-- Закрываем новый фильтр
+    assignedToMeFilter.close();
     isDialogLoading.close();
     dialogErrorMessage.close();
     dialogEditingTaskId.close();
@@ -445,6 +555,8 @@ class TasksController extends GetxController {
     dialogSelectedDueDate.close();
     dialogSelectedAssigneeId.close();
     dialogSelectedAssignee.close();
+    updatingTaskIds.close();
+    isUpdatingStatus.close();
     super.onClose();
   }
 }
