@@ -14,6 +14,12 @@ import '../modules/settings/bindings/settings_binding.dart';
 import '../modules/settings/views/settings_view.dart';
 import '../modules/splash/bindings/splash_binding.dart';
 import '../modules/splash/views/splash_view.dart';
+import '../modules/tasks/bindings/tasks_binding.dart';
+import '../modules/tasks/views/tasks_view.dart';
+import '../modules/tasks/bindings/create_edit_task_binding.dart';
+import '../modules/tasks/views/create_edit_task_view.dart';
+import '../modules/tasks/bindings/task_details_binding.dart';
+import '../modules/tasks/views/task_details_view.dart';
 
 part 'app_routes.dart';
 
@@ -57,6 +63,18 @@ class AppPages {
       name: _Paths.CONTACTS,
       page: () => const ContactsView(),
       binding: ContactsBinding(),
+    ),
+    GetPage(
+      name: _Paths.TASKS,
+      page: () => TasksView(),
+      binding: TasksBinding(),
+      children: [
+        GetPage(
+          name: _Paths.TASK_DETAILS,
+          page: () => const TaskDetailsView(),
+          binding: TaskDetailsBinding(),
+        ),
+      ],
     ),
   ];
 }

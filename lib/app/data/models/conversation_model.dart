@@ -1,4 +1,4 @@
-import 'package:vka_chat_ng/app/data/chat_participant_model.dart';
+import 'package:vka_chat_ng/app/data/models/chat_participant_model.dart';
 
 class Conversation {
   final String id;

@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
-import 'package:vka_chat_ng/app/data/contact_model.dart';
+import 'package:vka_chat_ng/app/data/models/contact_model.dart';
 import 'package:vka_chat_ng/app/constants.dart';
 import 'package:vka_chat_ng/app/services/socket_service.dart';
 import 'package:flutter/material.dart';

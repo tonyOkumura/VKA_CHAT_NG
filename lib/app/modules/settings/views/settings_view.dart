@@ -11,7 +11,7 @@ class SettingsView extends GetView<SettingsController> {
   @override
   Widget build(BuildContext context) {
     return MainLayout(
-      selectedIndex: 2,
+      selectedIndex: 3,
       child: Scaffold(
         appBar: AppBar(title: Text('settings'.tr), centerTitle: true),
         body: Stack(

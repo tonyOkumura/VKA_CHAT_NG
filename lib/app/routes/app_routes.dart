@@ -10,6 +10,9 @@ abstract class Routes {
   static const SPLASH = _Paths.SPLASH;
   static const SETTINGS = _Paths.SETTINGS;
   static const CONTACTS = _Paths.CONTACTS;
+  static const TASKS = _Paths.TASKS;
+  static const CREATE_EDIT_TASK = _Paths.TASKS + _Paths.CREATE_EDIT_TASK;
+  static const TASK_DETAILS = _Paths.TASKS + _Paths.TASK_DETAILS;
 }
 
 abstract class _Paths {
@@ -21,4 +24,7 @@ abstract class _Paths {
   static const SPLASH = '/splash';
   static const SETTINGS = '/settings';
   static const CONTACTS = '/contacts';
+  static const TASKS = '/tasks';
+  static const CREATE_EDIT_TASK = '/create-edit';
+  static const TASK_DETAILS = '/details';
 }

@@ -3,8 +3,8 @@ import 'package:get/get.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:vka_chat_ng/app/constants.dart';
 import 'package:vka_chat_ng/app/services/notification_service.dart';
-import 'package:vka_chat_ng/app/data/message_model.dart';
-import 'package:vka_chat_ng/app/data/conversation_model.dart';
+import 'package:vka_chat_ng/app/data/models/message_model.dart';
+import 'package:vka_chat_ng/app/data/models/conversation_model.dart';
 import 'package:vka_chat_ng/app/modules/chats/controllers/chats_controller.dart';
 
 class SocketService extends GetxService {

@@ -141,6 +141,13 @@ class AppSidebar extends StatelessWidget {
           },
         ),
         SidebarXItem(
+          icon: Icons.task_alt_rounded,
+          label: 'tasks'.tr,
+          onTap: () {
+            Get.offNamed(Routes.TASKS);
+          },
+        ),
+        SidebarXItem(
           icon: Icons.settings,
           label: 'settings'.tr,
           onTap: () {

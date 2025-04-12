@@ -7,13 +7,13 @@ import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:vka_chat_ng/app/constants.dart';
-import 'package:vka_chat_ng/app/data/conversation_model.dart';
-import 'package:vka_chat_ng/app/data/message_model.dart';
-import 'package:vka_chat_ng/app/data/message_reads_model.dart';
-import 'package:vka_chat_ng/app/data/contact_model.dart';
+import 'package:vka_chat_ng/app/data/models/conversation_model.dart';
+import 'package:vka_chat_ng/app/data/models/message_model.dart';
+import 'package:vka_chat_ng/app/data/models/message_reads_model.dart';
+import 'package:vka_chat_ng/app/data/models/contact_model.dart';
 import 'package:vka_chat_ng/app/services/socket_service.dart';
 import 'package:vka_chat_ng/app/services/file_service.dart';
-import 'package:vka_chat_ng/app/data/file_model.dart';
+import 'package:vka_chat_ng/app/data/models/file_model.dart';
 import 'dart:async';
 import 'package:vka_chat_ng/app/services/notification_service.dart';
 
