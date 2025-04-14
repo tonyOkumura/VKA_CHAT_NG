@@ -204,9 +204,12 @@ class TasksView extends GetView<TasksController> {
               const SizedBox(height: 12),
 
               // --- Фильтр по Приоритету ---
-              Text(
-                'Приоритет:',
-                style: theme.textTheme.bodyLarge?.copyWith(fontSize: 15),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: Text(
+                  'Приоритет:',
+                  style: theme.textTheme.bodyLarge?.copyWith(fontSize: 15),
+                ),
               ),
               const SizedBox(height: 8),
               Obx(
@@ -259,10 +262,16 @@ class TasksView extends GetView<TasksController> {
               ),
               const SizedBox(height: 16),
 
+              // --- Добавляем небольшой отступ/разделитель перед следующим фильтром ---
+              const SizedBox(height: 8),
+
               // --- Фильтр по Создателю ---
-              Text(
-                'Создатель:',
-                style: theme.textTheme.bodyLarge?.copyWith(fontSize: 15),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: Text(
+                  'Создатель:',
+                  style: theme.textTheme.bodyLarge?.copyWith(fontSize: 15),
+                ),
               ),
               const SizedBox(height: 8),
               // Используем GetBuilder для обновления списка создателей, если он изменится
@@ -1039,18 +1048,50 @@ class TaskCard extends StatelessWidget {
                       ),
                       // --- Дата выполнения ---
                       if (task.dueDate != null) ...[
-                        const SizedBox(width: 8),
-                        Icon(
-                          Icons.calendar_today_outlined,
-                          size: 14,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          DateFormat('dd MMM', 'ru').format(task.dueDate!),
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
+                        Builder(
+                          builder: (context) {
+                            // Используем Builder
+                            final bool isOverdue = task.dueDate!.isBefore(
+                              DateTime.now(),
+                            );
+                            final Color dateColor =
+                                isOverdue
+                                    ? theme.colorScheme.error
+                                    : theme.colorScheme.onSurfaceVariant;
+
+                            return Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const SizedBox(width: 8),
+                                Icon(
+                                  isOverdue
+                                      ? Icons.warning_amber_rounded
+                                      : Icons.calendar_today_outlined,
+                                  size: 14,
+                                  color: dateColor, // Цвет иконки
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  DateFormat(
+                                    'dd MMM',
+                                    'ru',
+                                  ).format(task.dueDate!),
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: dateColor, // Цвет текста
+                                    fontWeight:
+                                        isOverdue
+                                            ? FontWeight.bold
+                                            : null, // Жирный шрифт
+                                    decoration:
+                                        isOverdue
+                                            ? TextDecoration.underline
+                                            : null, // Подчеркивание
+                                    decorationColor: dateColor,
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
                         ),
                       ],
                     ],

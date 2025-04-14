@@ -157,6 +157,7 @@ class TaskCalendarView extends GetView<TaskCalendarController> {
 
               // -------------------------
               const Divider(),
+              const SizedBox(height: 16),
 
               // --- Секция Группировки ---
               Text('Группировать по:', style: theme.textTheme.titleMedium),
@@ -495,30 +496,54 @@ class TaskCalendarView extends GetView<TaskCalendarController> {
                       calendarBuilders: CalendarBuilders(
                         markerBuilder: (context, date, events) {
                           if (events.isNotEmpty) {
+                            // --- НОВОЕ: Отображаем до 3 точек с цветом по приоритету ---
+                            // Сортируем задачи по приоритету (1-высокий первый)
+                            final sortedEvents = List<TaskModel>.from(
+                              events,
+                            )..sort((a, b) => a.priority.compareTo(b.priority));
+
+                            // Берем до 3 задач
+                            final eventsToShow = sortedEvents.take(3).toList();
+
                             return Positioned(
-                              right: 1,
-                              bottom: 1,
-                              child: Container(
-                                width: 16,
-                                height: 16,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: theme.colorScheme.primary.withOpacity(
-                                    0.8,
-                                  ), // Чуть прозрачнее
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    '${events.length}',
-                                    style: TextStyle(
-                                      color: theme.colorScheme.onPrimary,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
+                              bottom: 4,
+                              right:
+                                  0, // Сдвигаем вправо, чтобы не перекрывать число
+                              left: 0,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children:
+                                    eventsToShow.map((task) {
+                                      // Определяем цвет точки по приоритету
+                                      Color markerColor;
+                                      switch (task.priority) {
+                                        case 1:
+                                          markerColor = Colors.red.shade400;
+                                          break;
+                                        case 2:
+                                          markerColor = Colors.orange.shade400;
+                                          break;
+                                        case 3:
+                                          markerColor = Colors.blue.shade400;
+                                          break;
+                                        default:
+                                          markerColor = Colors.grey;
+                                      }
+                                      return Container(
+                                        width: 6,
+                                        height: 6,
+                                        margin: const EdgeInsets.symmetric(
+                                          horizontal: 1.5,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: markerColor,
+                                        ),
+                                      );
+                                    }).toList(),
                               ),
                             );
+                            // ---------------------------------------------------------
                           }
                           return null;
                         },

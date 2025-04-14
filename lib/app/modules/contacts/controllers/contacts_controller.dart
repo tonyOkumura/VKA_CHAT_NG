@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:vka_chat_ng/app/data/models/contact_model.dart';
 import 'package:vka_chat_ng/app/constants.dart';
+import 'package:vka_chat_ng/app/data/models/user_model.dart';
 import 'package:vka_chat_ng/app/services/socket_service.dart';
 import 'package:flutter/material.dart';
 
@@ -26,6 +27,10 @@ class ContactsController extends GetxController {
   final dialogNameError = RxnString();
   final selectedContact = Rxn<Contact>();
   final userColors = <String, Color>{}.obs;
+  final globalUsers = <User>[].obs;
+  final filteredGlobalUsers = <User>[].obs;
+  final isFetchingGlobalUsers = false.obs;
+  final globalSearchQuery = ''.obs;
   final userColorsList = [
     Colors.blue.shade700,
     Colors.red.shade700,
@@ -57,10 +62,13 @@ class ContactsController extends GetxController {
     Colors.deepOrange.shade300,
   ];
 
+  late String currentUserId;
+
   @override
-  void onInit() {
+  void onInit() async {
     super.onInit();
-    fetchContacts();
+    await _getCurrentUserId();
+    await fetchContacts();
     print('ContactsController initialized.');
   }
 
@@ -71,10 +79,13 @@ class ContactsController extends GetxController {
 
   @override
   void onClose() {
+    groupNameController.dispose();
+    groupNameFocusNode.dispose();
+    dialogNameController.dispose();
+    dialogNameFocusNode.dispose();
     super.onClose();
   }
 
-  // Отмена режима выбора
   void cancelSelectionMode() {
     isSelectionMode.value = false;
     selectedContacts.clear();
@@ -91,6 +102,9 @@ class ContactsController extends GetxController {
     if (response.statusCode == 200) {
       List data = jsonDecode(response.body);
       contacts.value = data.map((e) => Contact.fromJson(e)).toList();
+      for (var contact in contacts) {
+        _ensureUserColor(contact.id);
+      }
       filterContacts(searchQuery.value);
       print('Contacts fetched successfully.');
     } else {
@@ -112,6 +126,13 @@ class ContactsController extends GetxController {
     if (response.statusCode == 201) {
       Get.snackbar('Успешно', 'Контакт добавлен');
       await fetchContacts();
+      Get.back();
+    } else {
+      Get.snackbar(
+        'Ошибка',
+        'Не удалось добавить контакт: ${response.reasonPhrase}',
+        snackPosition: SnackPosition.BOTTOM,
+      );
     }
   }
 
@@ -212,10 +233,113 @@ class ContactsController extends GetxController {
     isCreatingGroup.value = false;
   }
 
+  Future<void> _getCurrentUserId() async {
+    currentUserId = await _storage.read(key: AppKeys.userId) ?? '';
+    if (currentUserId.isEmpty) {
+      print('Error: Could not retrieve current user ID.');
+    } else {
+      print('Current User ID: $currentUserId');
+    }
+  }
+
+  Future<void> fetchGlobalUsers() async {
+    if (globalUsers.isNotEmpty) {
+      filterGlobalUsers('');
+      return;
+    }
+
+    isFetchingGlobalUsers.value = true;
+    print('Fetching global users...');
+    String token = await _storage.read(key: AppKeys.token) ?? '';
+    if (token.isEmpty) {
+      print('No token found for fetching global users.');
+      Get.snackbar('Ошибка', 'Отсутствует токен авторизации.');
+      isFetchingGlobalUsers.value = false;
+      return;
+    }
+    if (currentUserId.isEmpty) {
+      print('Current user ID is empty. Cannot filter.');
+      Get.snackbar('Ошибка', 'Не удалось определить текущего пользователя.');
+      isFetchingGlobalUsers.value = false;
+      return;
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/api/users/all'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        List data = jsonDecode(utf8.decode(response.bodyBytes));
+        List<User> allUsers = data.map((e) => User.fromJson(e)).toList();
+
+        final contactIds = contacts.map((c) => c.id).toSet();
+
+        globalUsers.value =
+            allUsers.where((user) {
+              return user.id != currentUserId && !contactIds.contains(user.id);
+            }).toList();
+
+        for (var user in globalUsers) {
+          _ensureUserColor(user.id);
+        }
+
+        filterGlobalUsers('');
+        print(
+          'Global users fetched and filtered successfully: ${globalUsers.length} users.',
+        );
+      } else {
+        print(
+          'Failed to fetch global users: ${response.statusCode} ${response.body}',
+        );
+        Get.snackbar(
+          'Ошибка',
+          'Не удалось загрузить список пользователей: ${response.reasonPhrase}',
+        );
+      }
+    } catch (e) {
+      print('Error fetching global users: $e');
+      Get.snackbar('Ошибка', 'Произошла ошибка при загрузке пользователей.');
+    } finally {
+      isFetchingGlobalUsers.value = false;
+    }
+  }
+
+  void filterGlobalUsers(String query) {
+    globalSearchQuery.value = query;
+    if (query.isEmpty) {
+      filteredGlobalUsers.value = globalUsers;
+    } else {
+      query = query.toLowerCase();
+      filteredGlobalUsers.value =
+          globalUsers.where((user) {
+            return user.username.toLowerCase().contains(query) ||
+                user.email.toLowerCase().contains(query);
+          }).toList();
+    }
+  }
+
+  Color _ensureUserColor(String userId) {
+    if (!userColors.containsKey(userId)) {
+      final colorIndex = userColors.length % userColorsList.length;
+      final color = userColorsList[colorIndex];
+      userColors[userId] = color;
+      return color;
+    }
+    return userColors[userId]!;
+  }
+
   Color getUserColor(String userId) {
-    // Генерируем цвет на основе ID пользователя
-    final hash = userId.hashCode;
-    final hue = (hash % 360).abs();
-    return HSLColor.fromAHSL(1, hue.toDouble(), 0.7, 0.5).toColor();
+    if (userColors.containsKey(userId)) {
+      return userColors[userId]!;
+    } else {
+      print(
+        'Warning: Color for userId $userId not pre-assigned. Generating fallback color.',
+      );
+      final hash = userId.hashCode;
+      final hue = (hash % 360).abs();
+      return HSLColor.fromAHSL(1, hue.toDouble(), 0.7, 0.5).toColor();
+    }
   }
 }

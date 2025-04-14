@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../controllers/task_details_controller.dart';
 // Импорты для виджетов, если понадобятся (например, для отображения исполнителей)
 import '../../../data/models/task_model.dart'; // TaskModel
+import '../../../data/models/file_model.dart'; // FileModel
 
 class TaskDetailsView extends GetView<TaskDetailsController> {
   const TaskDetailsView({super.key});
@@ -117,11 +118,26 @@ class TaskDetailsView extends GetView<TaskDetailsController> {
 
         // --- Срок выполнения ---
         if (task.dueDate != null) ...[
-          _buildInfoRow(
-            icon: Icons.event_busy_outlined,
-            label: 'Срок выполнения:',
-            value: dateFormat.format(task.dueDate!.toLocal()),
-            theme: theme,
+          Builder(
+            builder: (context) {
+              // Используем Builder для доступа к context/theme
+              final bool isOverdue = task.dueDate!.isBefore(DateTime.now());
+              final Color valueColor =
+                  isOverdue
+                      ? theme.colorScheme.error
+                      : theme.textTheme.bodyMedium!.color!;
+              final FontWeight valueWeight =
+                  isOverdue ? FontWeight.bold : FontWeight.normal;
+
+              return _buildInfoRow(
+                icon: Icons.event_busy_outlined,
+                label: 'Срок выполнения:',
+                value: dateFormat.format(task.dueDate!.toLocal()),
+                theme: theme,
+                valueColor: valueColor, // Передаем цвет значения
+                valueWeight: valueWeight, // Передаем насыщенность шрифта
+              );
+            },
           ),
           const SizedBox(height: 8),
         ],
@@ -156,26 +172,23 @@ class TaskDetailsView extends GetView<TaskDetailsController> {
         // --- Разделитель ---
         const Divider(height: 32),
 
-        // --- TODO: Секция Комментарии ---
+        // --- Секция Комментарии ---
         _buildSectionHeader(context, 'Комментарии', Icons.comment_outlined),
-        const Center(child: Text('Комментарии будут здесь')), // Заглушка
-        // ListView.builder(...) или Column(...) с комментариями
+        _buildCommentsSection(context, theme), // Используем новый метод
         const SizedBox(height: 16),
 
         // --- TODO: Секция Вложения ---
         _buildSectionHeader(context, 'Вложения', Icons.attachment_outlined),
-        const Center(child: Text('Вложения будут здесь')), // Заглушка
-        // GridView.builder(...) или Column(...) с вложениями
+        _buildAttachmentsSection(context, controller),
         const SizedBox(height: 16),
 
-        // --- TODO: Секция Логи ---
+        // --- Секция Логи ---
         _buildSectionHeader(
           context,
           'История изменений',
           Icons.history_outlined,
         ),
-        const Center(child: Text('Логи будут здесь')), // Заглушка
-        // ListView.builder(...) с логами
+        _buildLogsSection(context, theme), // Используем новый метод
         const SizedBox(height: 16),
       ],
     );
@@ -205,8 +218,13 @@ class TaskDetailsView extends GetView<TaskDetailsController> {
     required String label,
     required String value,
     required ThemeData theme,
+    Color? valueColor, // Добавляем опциональный цвет
+    FontWeight? valueWeight, // Добавляем опциональную насыщенность
   }) {
     return Row(
+      crossAxisAlignment:
+          CrossAxisAlignment
+              .start, // Выравнивание по верху, если текст переносится
       children: [
         Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
         const SizedBox(width: 8),
@@ -219,8 +237,11 @@ class TaskDetailsView extends GetView<TaskDetailsController> {
         Expanded(
           child: Text(
             value,
-            style: theme.textTheme.bodyMedium,
-            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: valueColor, // Применяем цвет
+              fontWeight: valueWeight, // Применяем насыщенность
+            ),
+            // overflow: TextOverflow.ellipsis, // Убираем, чтобы видеть полную дату/имя
           ),
         ),
       ],
@@ -289,6 +310,358 @@ class TaskDetailsView extends GetView<TaskDetailsController> {
       default:
         return Icons.help_outline;
     }
+  }
+
+  // --- НОВЫЙ ВИДЖЕТ: Секция комментариев ---
+  Widget _buildCommentsSection(BuildContext context, ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // --- Поле ввода нового комментария ---
+        Padding(
+          padding: const EdgeInsets.only(top: 8.0, bottom: 16.0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: controller.commentInputController,
+                  decoration: InputDecoration(
+                    hintText: 'Написать комментарий...',
+                    isDense: true,
+                    filled: true,
+                    fillColor: theme.colorScheme.surfaceVariant.withOpacity(
+                      0.4,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12.0),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12.0,
+                      vertical: 10.0,
+                    ),
+                    // TODO: Можно добавить индикатор ошибки от commentsErrorMessage
+                  ),
+                  minLines: 1,
+                  maxLines: 5, // Позволяем вводить несколько строк
+                  textInputAction:
+                      TextInputAction.newline, // Для многострочного ввода
+                ),
+              ),
+              const SizedBox(width: 8),
+              Obx(
+                () => IconButton(
+                  icon:
+                      controller.isSubmittingComment.value
+                          ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                          : const Icon(Icons.send_outlined),
+                  onPressed:
+                      controller.isSubmittingComment.value
+                          ? null
+                          : controller.submitComment,
+                  tooltip: 'Отправить комментарий',
+                  style: IconButton.styleFrom(
+                    backgroundColor: theme.colorScheme.primary,
+                    foregroundColor: theme.colorScheme.onPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // --- Список комментариев ---
+        Obx(() {
+          if (controller.isLoadingComments.value &&
+              controller.comments.isEmpty) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(16.0),
+                child: CircularProgressIndicator(),
+              ),
+            );
+          }
+          if (controller.commentsErrorMessage.value != null) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16.0),
+                child: Column(
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      color: Colors.orange,
+                      size: 32,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      controller.commentsErrorMessage.value!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.orange.shade800),
+                    ),
+                    const SizedBox(height: 8),
+                    ElevatedButton(
+                      onPressed: controller.fetchComments,
+                      child: const Text('Повторить'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+          if (controller.comments.isEmpty) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 24.0),
+                child: Text(
+                  'Комментариев пока нет.',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+            );
+          }
+          // Используем ListView.separated для добавления разделителей
+          return ListView.separated(
+            shrinkWrap: true, // Важно внутри другого ListView
+            physics:
+                const NeverScrollableScrollPhysics(), // Отключаем свою прокрутку
+            itemCount: controller.comments.length,
+            separatorBuilder:
+                (context, index) => const Divider(height: 12, thickness: 0.5),
+            itemBuilder: (context, index) {
+              final comment = controller.comments[index];
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6.0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Аватар комментатора (можно использовать getUserColor)
+                    CircleAvatar(
+                      radius: 18,
+                      backgroundColor: controller
+                          .getUserColor(comment.commenterId)
+                          .withOpacity(0.8),
+                      foregroundColor: Colors.white,
+                      child: Text(
+                        (comment.commenterUsername?.isNotEmpty ?? false)
+                            ? comment.commenterUsername![0].toUpperCase()
+                            : '?',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                comment.commenterUsername ??
+                                    'ID: ${comment.commenterId}',
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                comment
+                                    .formattedCreatedAt, // Используем геттер из модели
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            comment.comment,
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        }),
+      ],
+    );
+  }
+
+  // --- НОВЫЙ ВИДЖЕТ: Секция истории изменений ---
+  Widget _buildLogsSection(BuildContext context, ThemeData theme) {
+    return Obx(() {
+      if (controller.isLoadingLogs.value && controller.logs.isEmpty) {
+        return const Center(
+          child: Padding(
+            padding: EdgeInsets.all(16.0),
+            child: CircularProgressIndicator(),
+          ),
+        );
+      }
+      if (controller.logsErrorMessage.value != null) {
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16.0),
+            child: Column(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.orange, size: 32),
+                const SizedBox(height: 8),
+                Text(
+                  controller.logsErrorMessage.value!,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.orange.shade800),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton(
+                  onPressed: controller.fetchLogs,
+                  child: const Text('Повторить'),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+      if (controller.logs.isEmpty) {
+        return const Center(
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 24.0),
+            child: Text(
+              'История изменений пуста.',
+              style: TextStyle(color: Colors.grey),
+            ),
+          ),
+        );
+      }
+      // Используем ListView
+      return ListView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: controller.logs.length,
+        itemBuilder: (context, index) {
+          final log = controller.logs[index];
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4.0),
+            child: Text(
+              // Используем getReadableLog из модели, передавая карту приоритетов
+              log.getReadableLog(controller.priorityOptions),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant.withOpacity(0.8),
+              ),
+            ),
+          );
+        },
+      );
+    });
+  }
+
+  // --- НОВЫЙ МЕТОД: Секция вложений ---
+  Widget _buildAttachmentsSection(
+    BuildContext context,
+    TaskDetailsController controller,
+  ) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Вложения', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 10),
+            Obx(() {
+              if (controller.isLoadingAttachments.value) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (controller.attachmentsErrorMessage.value != null) {
+                return Center(
+                  child: Text(
+                    controller.attachmentsErrorMessage.value!,
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                );
+              }
+              if (controller.attachments.isEmpty) {
+                return const Center(child: Text('Вложений нет'));
+              }
+              // Используем ListView.builder для динамического списка
+              return ListView.builder(
+                shrinkWrap: true, // Важно для вложенных списков
+                physics:
+                    const NeverScrollableScrollPhysics(), // Отключаем скроллинг ListView
+                itemCount: controller.attachments.length,
+                itemBuilder: (context, index) {
+                  final FileModel attachment = controller.attachments[index];
+                  return ListTile(
+                    leading: const Icon(
+                      Icons.attach_file,
+                    ), // Простая иконка файла
+                    title: Text(attachment.fileName),
+                    // Можно добавить размер файла, если он есть в модели
+                    // subtitle: Text('${(attachment.sizeInBytes / 1024).toStringAsFixed(2)} KB'),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.download),
+                          tooltip: 'Скачать',
+                          onPressed:
+                              () => controller.downloadAttachment(
+                                attachment.id,
+                                attachment.fileName,
+                              ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          tooltip: 'Удалить',
+                          onPressed:
+                              () => controller.deleteAttachment(
+                                attachment.id,
+                                attachment.fileName,
+                              ),
+                        ),
+                      ],
+                    ),
+                    dense: true,
+                  );
+                },
+              );
+            }),
+            const SizedBox(height: 15),
+            Obx(() {
+              // Показываем индикатор загрузки файла
+              if (controller.isUploadingAttachment.value) {
+                return const Padding(
+                  padding: EdgeInsets.only(bottom: 8.0),
+                  child: LinearProgressIndicator(),
+                );
+              }
+              return const SizedBox.shrink(); // Возвращаем пустой виджет, если не загружаем
+            }),
+            Center(
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.add),
+                label: const Text('Добавить вложение'),
+                onPressed:
+                    controller.isUploadingAttachment.value
+                        ? null // Блокируем кнопку во время загрузки
+                        : () => controller.pickAndUploadAttachment(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   // --- TODO: Методы для навигации на редактирование или подтверждения удаления ---

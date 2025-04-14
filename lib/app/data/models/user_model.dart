@@ -17,10 +17,10 @@ class User {
 
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
-      id: json['user_id'],
+      id: json['id'],
       username: json['username'],
       email: json['email'],
-      is_online: json['is_online'],
+      is_online: json['is_online'] ?? false,
       created_at: DateTime.parse(json['created_at']),
       updated_at: DateTime.parse(json['updated_at']),
     );
