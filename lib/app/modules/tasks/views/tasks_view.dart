@@ -34,6 +34,337 @@ class TasksView extends GetView<TasksController> {
     controller.clearFilters();
   }
 
+  // --- НОВОЕ: Метод для показа BottomSheet с фильтрами и сортировкой ---
+  void _showFilterSortSheet(BuildContext context) {
+    final theme = Theme.of(context);
+
+    // --- Хелперы для названий сортировки ---
+    String _getSortFieldDisplayName(TaskSortField field) {
+      switch (field) {
+        case TaskSortField.priority:
+          return 'Приоритету';
+        case TaskSortField.createdAt:
+          return 'Дате создания';
+        case TaskSortField.dueDate:
+          return 'Сроку';
+        case TaskSortField.title:
+          return 'Названию';
+        default:
+          return '';
+      }
+    }
+
+    String _getSortDirectionDisplayName(SortDirection direction) {
+      switch (direction) {
+        case SortDirection.ascending:
+          return 'По возрастанию';
+        case SortDirection.descending:
+          return 'По убыванию';
+        default:
+          return '';
+      }
+    }
+    // -------------------------------------
+
+    Get.bottomSheet(
+      Container(
+        padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 20.0),
+        decoration: BoxDecoration(
+          color: theme.cardColor,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(20.0),
+            topRight: Radius.circular(20.0),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, -5),
+            ),
+          ],
+        ),
+        child: SingleChildScrollView(
+          // Добавляем прокрутку
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // --- Заголовок BottomSheet ---
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Фильтры и Сортировка',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Get.back(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // --- СЕКЦИЯ СОРТИРОВКИ ---
+              Text('Сортировать по:', style: theme.textTheme.titleMedium),
+              const SizedBox(height: 8),
+              Obx(
+                () => Wrap(
+                  spacing: 8.0,
+                  runSpacing: 4.0,
+                  children:
+                      TaskSortField.values.map((field) {
+                        return ChoiceChip(
+                          label: Text(_getSortFieldDisplayName(field)),
+                          selected: controller.sortField.value == field,
+                          onSelected: (selected) {
+                            if (selected) {
+                              // При выборе нового поля, оставляем текущее направление
+                              controller.setSort(
+                                field,
+                                controller.sortDirection.value,
+                              );
+                            }
+                          },
+                          selectedColor: theme.colorScheme.primaryContainer,
+                          labelStyle: TextStyle(
+                            color:
+                                controller.sortField.value == field
+                                    ? theme.colorScheme.onPrimaryContainer
+                                    : theme.colorScheme.onSurfaceVariant,
+                            fontSize: 13,
+                          ),
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          side: BorderSide(
+                            color: theme.dividerColor.withOpacity(0.3),
+                          ),
+                        );
+                      }).toList(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Obx(
+                () => Wrap(
+                  spacing: 8.0,
+                  runSpacing: 4.0,
+                  children:
+                      SortDirection.values.map((direction) {
+                        return ChoiceChip(
+                          label: Text(_getSortDirectionDisplayName(direction)),
+                          selected: controller.sortDirection.value == direction,
+                          onSelected: (selected) {
+                            if (selected) {
+                              // При выборе направления, оставляем текущее поле
+                              controller.setSort(
+                                controller.sortField.value,
+                                direction,
+                              );
+                            }
+                          },
+                          selectedColor: theme.colorScheme.secondaryContainer,
+                          labelStyle: TextStyle(
+                            color:
+                                controller.sortDirection.value == direction
+                                    ? theme.colorScheme.onSecondaryContainer
+                                    : theme.colorScheme.onSurfaceVariant,
+                            fontSize: 13,
+                          ),
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          side: BorderSide(
+                            color: theme.dividerColor.withOpacity(0.3),
+                          ),
+                        );
+                      }).toList(),
+                ),
+              ),
+
+              // --- КОНЕЦ СЕКЦИИ СОРТИРОВКИ ---
+              const SizedBox(height: 16),
+              const Divider(),
+              const SizedBox(height: 16),
+
+              // --- СЕКЦИЯ ФИЛЬТРОВ ---
+              Text('Фильтры:', style: theme.textTheme.titleMedium),
+              const SizedBox(height: 12),
+
+              // --- Фильтр по Приоритету ---
+              Text(
+                'Приоритет:',
+                style: theme.textTheme.bodyLarge?.copyWith(fontSize: 15),
+              ),
+              const SizedBox(height: 8),
+              Obx(
+                () => Wrap(
+                  spacing: 8.0,
+                  runSpacing: 4.0,
+                  children:
+                      controller.priorityOptions.entries.map((entry) {
+                        final int priorityValue = entry.key;
+                        final String priorityName = entry.value;
+                        final bool isSelected = controller.priorityFilter
+                            .contains(priorityValue);
+
+                        return FilterChip(
+                          label: Text(priorityName),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            final currentSelection =
+                                controller.priorityFilter.toList();
+                            if (selected) {
+                              currentSelection.add(priorityValue);
+                            } else {
+                              currentSelection.remove(priorityValue);
+                            }
+                            controller.setPriorityFilter(currentSelection);
+                          },
+                          selectedColor: theme.colorScheme.tertiaryContainer,
+                          checkmarkColor: theme.colorScheme.onTertiaryContainer,
+                          labelStyle: TextStyle(
+                            color:
+                                isSelected
+                                    ? theme.colorScheme.onTertiaryContainer
+                                    : theme.colorScheme.onSurfaceVariant,
+                            fontSize: 13,
+                          ),
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          side: BorderSide(
+                            color: theme.dividerColor.withOpacity(0.3),
+                          ),
+                        );
+                      }).toList(),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // --- Фильтр по Создателю ---
+              Text(
+                'Создатель:',
+                style: theme.textTheme.bodyLarge?.copyWith(fontSize: 15),
+              ),
+              const SizedBox(height: 8),
+              // Используем GetBuilder для обновления списка создателей, если он изменится
+              GetBuilder<TasksController>(
+                id: 'creators_list', // ID для обновления из контроллера
+                builder: (_) {
+                  // Используем (_) т.к. controller уже доступен
+                  final creators = controller.availableCreators;
+                  if (creators.isEmpty &&
+                      controller.creatorFilter.value == null) {
+                    // Если нет создателей и фильтр не активен, ничего не показываем
+                    // или показываем сообщение типа "Нет создателей для фильтра"
+                    return const SizedBox(height: 36); // Placeholder высоты
+                  }
+                  // Добавляем опцию "Все" вручную
+                  final items = <DropdownMenuItem<String?>>[
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text(
+                        'Все создатели',
+                        style: TextStyle(fontStyle: FontStyle.italic),
+                      ),
+                    ),
+                    ...creators.map((contact) {
+                      return DropdownMenuItem<String?>(
+                        value: contact.id,
+                        child: Text(contact.username ?? contact.id),
+                      );
+                    }).toList(),
+                  ];
+
+                  // Если текущий фильтр по создателю, которого нет в списке, временно добавим его
+                  // (Например, если список задач обновился и создатель пропал)
+                  final selectedValue = controller.creatorFilter.value;
+                  if (selectedValue != null &&
+                      !creators.any((c) => c.id == selectedValue)) {
+                    items.add(
+                      DropdownMenuItem<String?>(
+                        value: selectedValue,
+                        child: Text(
+                          controller.getContactUsernameById(selectedValue) ??
+                              'Неизвестный',
+                          style: const TextStyle(color: Colors.grey),
+                        ),
+                      ),
+                    );
+                  }
+
+                  return DropdownButtonFormField<String?>(
+                    value:
+                        controller
+                            .creatorFilter
+                            .value, // Текущее значение фильтра
+                    items: items,
+                    onChanged: (String? newValue) {
+                      controller.setCreatorFilter(newValue);
+                    },
+                    decoration: InputDecoration(
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16.0),
+                        borderSide: BorderSide(
+                          color: theme.dividerColor.withOpacity(0.4),
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16.0),
+                        borderSide: BorderSide(
+                          color: theme.dividerColor.withOpacity(0.4),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16.0),
+                        borderSide: BorderSide(
+                          color: theme.colorScheme.primary,
+                          width: 1.5,
+                        ),
+                      ),
+                    ),
+                    style: theme.textTheme.bodyMedium?.copyWith(fontSize: 14),
+                    isExpanded: true, // Растягиваем на всю ширину
+                    // hint: const Text('Выберите создателя'),
+                  );
+                },
+              ),
+
+              // ---------------------------
+              const SizedBox(height: 20), // Отступ снизу
+            ],
+          ),
+        ),
+      ),
+      isScrollControlled: true,
+    );
+    // print("Show Filter/Sort Bottom Sheet"); // Можно убрать
+  }
+  // ------------------------------------------------------------------
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -58,29 +389,32 @@ class TasksView extends GetView<TasksController> {
               },
               tooltip: 'Календарь задач',
             ),
-            // --- Кнопка сброса (убираем проверку statusFilter) ---
+            // --- НОВАЯ КНОПКА Фильтры/Сортировка ---
+            IconButton(
+              icon: const Icon(Icons.filter_list), // Иконка фильтра
+              onPressed:
+                  () => _showFilterSortSheet(context), // Вызываем BottomSheet
+              tooltip: 'Фильтры и сортировка',
+            ),
+            // --- ИЗМЕНЕНО: Кнопка сброса ---
             Obx(
               () => AnimatedOpacity(
-                opacity:
-                    (controller.searchTerm.value != null ||
-                            controller.assignedToMeFilter.value)
-                        ? 1.0
-                        : 0.0,
+                // Показываем, если активен любой фильтр или нестандартная сортировка
+                opacity: controller.isAnyFilterOrSortActive ? 1.0 : 0.0,
                 duration: const Duration(milliseconds: 200),
                 child:
-                    (controller.searchTerm.value != null ||
-                            controller.assignedToMeFilter.value)
+                    controller.isAnyFilterOrSortActive
                         ? IconButton(
                           icon: const Icon(Icons.filter_alt_off_outlined),
-                          onPressed: _clearSearchAndFilter,
-                          tooltip: 'Сбросить фильтры',
+                          onPressed: _clearSearchAndFilter, // Сбрасывает все
+                          tooltip: 'Сбросить фильтры и сортировку',
                         )
                         : const SizedBox.shrink(),
               ),
             ),
             IconButton(
               icon: const Icon(Icons.refresh),
-              onPressed: () => controller.fetchTasks(),
+              onPressed: () => Get.find<TasksController>().fetchTasks(),
               tooltip: 'Обновить задачи',
             ),
           ],
@@ -213,36 +547,32 @@ class TasksView extends GetView<TasksController> {
             0,
             (sum, list) => sum + list.length,
           );
+          // --- ИЗМЕНЕНО: Используем isAnyFilterOrSortActive для текста и кнопки сброса ---
           if (!controller.isLoading.value && totalFilteredTasks == 0) {
+            final bool filtersActive = controller.isAnyFilterOrSortActive;
             return Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    // Иконка зависит от того, применены ли фильтры
-                    (controller.searchTerm.value != null ||
-                            controller.assignedToMeFilter.value)
+                    filtersActive
                         ? Icons.filter_alt_off_outlined
-                        : Icons
-                            .space_dashboard_outlined, // Иконка для пустой доски
+                        : Icons.space_dashboard_outlined,
                     size: 48,
                     color: Colors.grey,
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    // Текст зависит от фильтров
-                    (controller.searchTerm.value != null ||
-                            controller.assignedToMeFilter.value)
-                        ? 'Задачи не найдены'
-                        : 'Задач пока нет',
+                    filtersActive ? 'Задачи не найдены' : 'Задач пока нет',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.titleMedium?.copyWith(color: Colors.grey[600]),
                   ),
                   const SizedBox(height: 10),
-                  // Кнопка сброса, если фильтры применены и доска пуста
-                  if (controller.searchTerm.value != null ||
-                      controller.assignedToMeFilter.value)
+                  if (filtersActive)
                     ElevatedButton(
                       onPressed: _clearSearchAndFilter,
-                      child: const Text('Сбросить фильтры'),
+                      child: const Text('Сбросить фильтры и сортировку'),
                     )
                   else // Кнопка создания, если фильтров нет и доска пуста
                     ElevatedButton(

@@ -9,6 +9,22 @@ import 'package:vka_chat_ng/app/modules/contacts/controllers/contacts_controller
 
 import 'package:vka_chat_ng/app/modules/tasks/widgets/single_assignee_selection_dialog.dart';
 import 'package:dio/dio.dart'; // <-- Импорт для DioError
+import 'dart:collection'; // Для LinkedHashMap
+
+// --- НОВОЕ: Enum для полей сортировки ---
+enum TaskSortField {
+  priority, // По приоритету (сначала высокий)
+  createdAt, // По дате создания (сначала новые)
+  dueDate, // По сроку выполнения (сначала ближайшие)
+  title, // По названию (А-Я)
+}
+
+// --- НОВОЕ: Enum для направления сортировки ---
+enum SortDirection {
+  ascending, // По возрастанию (А-Я, 0-9, старые-новые, низкий-высокий)
+  descending, // По убыванию (Я-А, 9-0, новые-старые, высокий-низкий)
+}
+// ------------------------------------------
 
 class TasksController extends GetxController {
   final TaskApiService _apiService = Get.find<TaskApiService>();
@@ -19,14 +35,33 @@ class TasksController extends GetxController {
   // --- Основное состояние ---
   final RxList<TaskModel> taskList =
       <TaskModel>[].obs; // Полный список с сервера
-  // --- НОВОЕ: Задачи, сгруппированные по статусу для Kanban ---
-  final RxMap<String, RxList<TaskModel>> tasksByStatus =
-      <String, RxList<TaskModel>>{}.obs;
+  // --- ИЗМЕНЕНО: Используем LinkedHashMap, чтобы сохранить порядок статусов ---
+  final RxMap<String, RxList<TaskModel>> tasksByStatus = RxMap.of(
+    LinkedHashMap<String, RxList<TaskModel>>.from({
+      'open': <TaskModel>[].obs,
+      'in_progress': <TaskModel>[].obs,
+      'done': <TaskModel>[].obs,
+      'closed': <TaskModel>[].obs,
+    }),
+  );
+  // -----------------------------------------------------------------------
   final RxBool isLoading = false.obs;
   final RxnString errorMessage = RxnString(null);
   // --- Фильтры ---
   final RxnString searchTerm = RxnString(null);
   final RxBool assignedToMeFilter = false.obs; // <-- Фильтр "Назначенные мне"
+  // --- НОВЫЕ ФИЛЬТРЫ ---
+  final RxList<int> priorityFilter =
+      <int>[].obs; // Список выбранных приоритетов
+  final RxnString creatorFilter = RxnString(); // ID выбранного создателя
+  // --------------------
+
+  // --- НОВАЯ СОРТИРОВКА ---
+  final Rx<TaskSortField> sortField =
+      TaskSortField.priority.obs; // По умолчанию по приоритету
+  final Rx<SortDirection> sortDirection =
+      SortDirection.ascending.obs; // По умолчанию по возрастанию (1, 2, 3)
+  // ----------------------
 
   // --- Временное состояние для диалога создания/редактирования ---
   final GlobalKey<FormState> dialogFormKey = GlobalKey<FormState>();
@@ -43,23 +78,62 @@ class TasksController extends GetxController {
   final Rxn<Contact> dialogSelectedAssignee = Rxn<Contact>();
 
   // Доступные опции для диалога (можно вынести)
-  final List<String> statusOptions = ['open', 'in_progress', 'done', 'closed'];
+  // --- ИЗМЕНЕНО: Используем ключи из tasksByStatus ---
+  List<String> get statusOptions => tasksByStatus.keys.toList();
+  // -------------------------------------------------
   final Map<int, String> priorityOptions = {
     1: 'Высокий',
     2: 'Средний',
     3: 'Низкий',
   };
+  // --- НОВОЕ: Список контактов для фильтра по создателю ---
+  List<Contact> get availableCreators {
+    // Убедимся, что _contactsController инициализирован
+    if (!Get.isRegistered<ContactsController>() ||
+        !_contactsController.initialized) {
+      return [];
+    }
+    final creatorIds = taskList.map((t) => t.creatorId).toSet();
+    return _contactsController.contacts
+        .where((c) => creatorIds.contains(c.id))
+        .toList();
+  }
+  // -------------------------------------------------
+
+  // --- НОВОЕ: Геттер для получения всех контактов ---
+  List<Contact> get allContacts {
+    if (!Get.isRegistered<ContactsController>() ||
+        !_contactsController.initialized) {
+      return [];
+    }
+    return _contactsController.contacts;
+  }
+  // -----------------------------------------------
+
   bool get isDialogEditing => dialogEditingTaskId.value != null;
 
   final RxBool isUpdatingStatus = false.obs; // Индикатор загрузки для статуса
   final RxSet<String> updatingTaskIds =
       <String>{}.obs; // Хранить ID задач в процессе обновления
 
+  // --- НОВОЕ: Геттер для проверки, активны ли какие-либо фильтры/сортировка ---
+  bool get isAnyFilterOrSortActive {
+    return searchTerm.value != null ||
+        assignedToMeFilter.value ||
+        priorityFilter.isNotEmpty ||
+        creatorFilter.value != null ||
+        sortField.value !=
+            TaskSortField.priority || // Если не дефолтная сортировка
+        sortDirection.value != SortDirection.ascending;
+  }
+  // -------------------------------------------------------------------------
+
   @override
   void onInit() async {
-    // Делаем onInit асинхронным
+    // --- ОТЛАДКА: Логирование Init ---
+    print("TasksController[${this.hashCode}]: onInit START");
+    // ----------------------------------
     super.onInit();
-    // --- Получаем ID текущего пользователя ---
     currentUserId = await _storage.read(key: AppKeys.userId) ?? '';
     if (currentUserId.isEmpty) {
       print("CRITICAL: Could not get current user ID in TasksController.");
@@ -71,25 +145,7 @@ class TasksController extends GetxController {
     // ------------------------------------
 
     // Инициализируем _contactsController
-    if (Get.isRegistered<ContactsController>()) {
-      _contactsController = Get.find<ContactsController>();
-      print("TasksController: Found existing ContactsController.");
-      if (_contactsController.contacts.isEmpty &&
-          !_contactsController.isLoading.value) {
-        print("TasksController: Contacts list is empty, fetching...");
-        // Не блокируем инициализацию задач из-за контактов
-        _contactsController.fetchContacts().catchError((e) {
-          print("Error fetching contacts during init: $e");
-          // Можно показать snackbar или просто залогировать
-        });
-      }
-    } else {
-      print("TasksController: ContactsController not found, creating one.");
-      _contactsController = Get.put(ContactsController());
-      _contactsController.fetchContacts().catchError((e) {
-        print("Error fetching contacts during init (controller created): $e");
-      });
-    }
+    await _initializeContactsController(); // Вынесли в отдельный метод
 
     // Инициализируем карту статусов пустыми списками
     for (var status in statusOptions) {
@@ -97,7 +153,56 @@ class TasksController extends GetxController {
     }
 
     fetchTasks(); // Загружаем задачи
+    // --- ОТЛАДКА: Логирование Init ---
+    print("TasksController[${this.hashCode}]: onInit END");
+    // ----------------------------------
   }
+
+  // --- НОВОЕ: Метод для инициализации ContactsController ---
+  Future<void> _initializeContactsController() async {
+    if (Get.isRegistered<ContactsController>()) {
+      _contactsController = Get.find<ContactsController>();
+      print("TasksController: Found existing ContactsController.");
+      // Проверяем, инициализирован ли контроллер и пуст ли список
+      if (!_contactsController.initialized &&
+          !_contactsController.isLoading.value) {
+        print(
+          "TasksController: Existing ContactsController not initialized. Fetching...",
+        );
+        try {
+          await _contactsController.fetchContacts();
+        } catch (e) {
+          print(
+            "Error fetching contacts during init (existing controller): $e",
+          );
+        }
+      } else if (_contactsController.initialized &&
+          _contactsController.contacts.isEmpty) {
+        print("TasksController: Contacts list is empty, fetching again...");
+        try {
+          await _contactsController.fetchContacts();
+        } catch (e) {
+          print(
+            "Error fetching contacts during init (existing controller, empty list): $e",
+          );
+        }
+      }
+    } else {
+      print(
+        "TasksController: ContactsController not found, creating and fetching...",
+      );
+      _contactsController = Get.put(ContactsController());
+      try {
+        await _contactsController.fetchContacts();
+      } catch (e) {
+        print("Error fetching contacts during init (controller created): $e");
+      }
+    }
+    // Добавим слушатель, чтобы обновить availableCreators при обновлении контактов
+    // Используем `once` или `ever` в зависимости от необходимости
+    // ever(_contactsController.contacts, (_) => update(['creators_filter'])); // Если используете GetBuilder ID
+  }
+  // ------------------------------------------------------
 
   // --- Инициализация диалога ---
   void initDialogForCreate() {
@@ -165,24 +270,37 @@ class TasksController extends GetxController {
     if (showLoading) isLoading.value = true;
     errorMessage.value = null;
     try {
-      // Загружаем *все* задачи пользователя с сервера
+      // Убедимся, что контакты загружены перед фильтрацией по создателю
+      if (!_contactsController.initialized) {
+        await _initializeContactsController();
+      }
+      // --- Проверка перед вызовом API ---
+      if (isClosed) return;
       final tasks = await _apiService.getTasks();
-      taskList.assignAll(tasks); // Сохраняем полный список
-      _applyFilters(); // Применяем текущие фильтры к загруженным данным
+      // --- Проверка после API перед обновлением состояния ---
+      if (isClosed) return;
+      taskList.assignAll(tasks);
+      _applyFiltersAndSort(); // Применяем фильтры и сортировку
     } catch (e) {
       print("Error in TasksController fetchTasks: $e");
+      // --- Проверка перед обновлением состояния в catch ---
+      if (isClosed) return;
       errorMessage.value = "Ошибка загрузки задач: ${e.toString()}";
-      taskList.clear(); // Очищаем списки при ошибке
+      taskList.clear();
       tasksByStatus.forEach((key, list) => list.clear());
     } finally {
+      // --- Проверка перед обновлением состояния в finally ---
+      if (isClosed) return;
       if (showLoading) isLoading.value = false;
     }
   }
 
-  // Обновленный метод фильтрации: Группирует задачи по статусам
-  void _applyFilters() {
+  // --- ОБНОВЛЕННЫЙ МЕТОД: Фильтрация и Сортировка ---
+  void _applyFiltersAndSort() {
     final String? search = searchTerm.value?.toLowerCase();
     final bool assignedToMe = assignedToMeFilter.value;
+    final List<int> priorities = priorityFilter;
+    final String? creatorId = creatorFilter.value;
 
     // Создаем временную карту для новых отфильтрованных списков
     final Map<String, List<TaskModel>> tempTasksByStatus = {};
@@ -190,28 +308,44 @@ class TasksController extends GetxController {
       tempTasksByStatus[status] = [];
     }
 
-    // Итерируем по полному списку задач
+    // 1. Фильтрация
     for (var task in taskList) {
       bool passesFilter = true;
 
-      // 1. Фильтр "Назначенные мне"
+      // Фильтр "Назначенные мне"
       if (assignedToMe && task.assigneeId != currentUserId) {
         passesFilter = false;
       }
-
-      // 2. Фильтр по поиску
+      // Фильтр по Приоритету
+      if (passesFilter &&
+          priorities.isNotEmpty &&
+          !priorities.contains(task.priority)) {
+        passesFilter = false;
+      }
+      // Фильтр по Создателю
+      if (passesFilter && creatorId != null && task.creatorId != creatorId) {
+        passesFilter = false;
+      }
+      // Фильтр по Поиску (текст)
       if (passesFilter && search != null && search.isNotEmpty) {
         final titleMatch = task.title.toLowerCase().contains(search);
         final descriptionMatch =
             task.description?.toLowerCase().contains(search) ?? false;
         final assigneeMatch =
             task.assigneeUsername?.toLowerCase().contains(search) ?? false;
-        if (!(titleMatch || descriptionMatch || assigneeMatch)) {
+        final creatorMatch =
+            task.creatorUsername?.toLowerCase().contains(search) ?? false;
+        // Можно добавить поиск по ID
+        // final idMatch = task.id.toLowerCase().contains(search);
+        if (!(titleMatch ||
+            descriptionMatch ||
+            assigneeMatch ||
+            creatorMatch)) {
           passesFilter = false;
         }
       }
 
-      // Если задача прошла фильтры, добавляем ее в соответствующий список статуса
+      // Добавляем задачу в соответствующий статус, если она прошла фильтры
       if (passesFilter) {
         if (tempTasksByStatus.containsKey(task.status)) {
           tempTasksByStatus[task.status]!.add(task);
@@ -220,9 +354,15 @@ class TasksController extends GetxController {
           print(
             "Warning: Task ${task.id} has unknown status '${task.status}'. Not adding to board.",
           );
+          // Можно добавить в какую-то "прочую" колонку, если нужно
         }
       }
     }
+
+    // 2. Сортировка внутри каждой группы статуса
+    tempTasksByStatus.forEach((status, list) {
+      list.sort((a, b) => _compareTasks(a, b));
+    });
 
     // Обновляем реактивные списки в tasksByStatus
     tasksByStatus.forEach((status, reactiveList) {
@@ -230,36 +370,135 @@ class TasksController extends GetxController {
     });
 
     print(
-      "Filters applied. Task counts: ${tasksByStatus.map((k, v) => MapEntry(k, v.length))}",
+      "Filters and Sort applied. Sort: ${sortField.value} ${sortDirection.value}. Counts: ${tasksByStatus.map((k, v) => MapEntry(k, v.length))}",
     );
+    // Обновляем список доступных создателей после фильтрации
+    // Это гарантирует, что список актуален, но может быть избыточно часто
+    update(['creators_list']); // Обновляем GetBuilder с ID 'creators_list' в UI
   }
 
-  // --- Методы для изменения фильтров ---
+  // --- НОВЫЙ МЕТОД: Сравнение задач для сортировки ---
+  int _compareTasks(TaskModel a, TaskModel b) {
+    int comparison;
+    switch (sortField.value) {
+      case TaskSortField.priority:
+        // Приоритет: Меньшее число = выше приоритет. Для восходящей сортировки нужно сравнить b с a.
+        comparison = a.priority.compareTo(b.priority);
+        // Если нужно сначала ВЫСОКИЙ (1), то нужно инвертировать или использовать SortDirection.descending по умолчанию
+        // Стандартный compareTo (1 vs 2) -> -1. (1 vs 3) -> -1. (2 vs 3) -> -1.
+        // ascending (1, 2, 3) - сначала высокий
+        // descending (3, 2, 1) - сначала низкий
+        break;
+      case TaskSortField.createdAt:
+        // ascending: старые -> новые
+        // descending: новые -> старые
+        comparison = a.createdAt.compareTo(b.createdAt);
+        break;
+      case TaskSortField.dueDate:
+        // ascending: без даты -> ближайшие -> далекие
+        // descending: далекие -> ближайшие -> без даты
+        if (a.dueDate == null && b.dueDate == null) {
+          comparison = 0;
+        } else if (a.dueDate == null) {
+          comparison = 1; // null больше (в конец при ascending)
+        } else if (b.dueDate == null) {
+          comparison = -1; // не null меньше (в начало при ascending)
+        } else {
+          comparison = a.dueDate!.compareTo(b.dueDate!);
+        }
+        break;
+      case TaskSortField.title:
+        // ascending: А -> Я
+        // descending: Я -> А
+        comparison = a.title.toLowerCase().compareTo(b.title.toLowerCase());
+        break;
+    }
+
+    // Применяем направление сортировки
+    return sortDirection.value == SortDirection.ascending
+        ? comparison
+        : -comparison;
+  }
+
+  // --- Методы для изменения фильтров и сортировки ---
 
   void searchTasks(String? term) {
-    searchTerm.value = term;
-    _applyFilters();
+    if (searchTerm.value != term) {
+      searchTerm.value = term;
+      _applyFiltersAndSort();
+    }
   }
 
-  // Новый метод для фильтра "Назначенные мне"
   void toggleAssignedToMeFilter() {
-    assignedToMeFilter.toggle(); // Переключаем значение
-    _applyFilters(); // Применяем фильтры
+    assignedToMeFilter.toggle();
+    _applyFiltersAndSort();
   }
+
+  // --- НОВЫЕ МЕТОДЫ УПРАВЛЕНИЯ ФИЛЬТРАМИ/СОРТИРОВКОЙ ---
+  void setPriorityFilter(List<int> priorities) {
+    // Проверяем, изменился ли список, чтобы избежать лишних перерисовок
+    if (priorityFilter.length != priorities.length ||
+        !priorityFilter.every((p) => priorities.contains(p))) {
+      priorityFilter.assignAll(priorities);
+      _applyFiltersAndSort();
+    }
+  }
+
+  void setCreatorFilter(String? creatorId) {
+    if (creatorFilter.value != creatorId) {
+      creatorFilter.value = creatorId;
+      _applyFiltersAndSort();
+    }
+  }
+
+  void setSort(TaskSortField field, SortDirection direction) {
+    bool changed = false;
+    if (sortField.value != field) {
+      sortField.value = field;
+      changed = true;
+    }
+    if (sortDirection.value != direction) {
+      sortDirection.value = direction;
+      changed = true;
+    }
+    if (changed) {
+      _applyFiltersAndSort();
+    }
+  }
+  // ------------------------------------------------------
 
   void clearFilters() {
     bool needsRefilter = false;
+
     if (searchTerm.value != null) {
       searchTerm.value = null;
       needsRefilter = true;
     }
     if (assignedToMeFilter.value) {
-      // <-- Сбрасываем новый фильтр
       assignedToMeFilter.value = false;
       needsRefilter = true;
     }
+    // --- СБРОС НОВЫХ ФИЛЬТРОВ И СОРТИРОВКИ ---
+    if (priorityFilter.isNotEmpty) {
+      priorityFilter.clear();
+      needsRefilter = true;
+    }
+    if (creatorFilter.value != null) {
+      creatorFilter.value = null;
+      needsRefilter = true;
+    }
+    // Сбрасываем сортировку к дефолтной (по приоритету, высокий сначала)
+    // Убедимся, что дефолтная сортировка по приоритету ставит высокий (1) первым
+    if (sortField.value != TaskSortField.priority ||
+        sortDirection.value != SortDirection.ascending) {
+      sortField.value = TaskSortField.priority;
+      sortDirection.value = SortDirection.ascending; // ascending: 1, 2, 3
+      needsRefilter = true;
+    }
+    // ------------------------------------------
+
     if (needsRefilter) {
-      _applyFilters(); // Применяем фильтры только если что-то сбросили
+      _applyFiltersAndSort(); // Применяем фильтры и сортировку
     }
   }
 
@@ -274,26 +513,29 @@ class TasksController extends GetxController {
     DateTime? dueDate,
   }) async {
     dialogErrorMessage.value = null;
+    isDialogLoading.value = true; // Устанавливаем флаг загрузки для диалога
     try {
       final newTaskData = <String, dynamic>{
         'title': title,
         'status': status,
         'priority': priority,
       };
-      if (description != null) newTaskData['description'] = description;
+      if (description != null && description.isNotEmpty)
+        newTaskData['description'] = description;
       if (assigneeId != null) newTaskData['assignee_id'] = assigneeId;
       if (dueDate != null)
-        newTaskData['due_date'] =
-            dueDate.toUtc().toIso8601String(); // Отправляем UTC
+        newTaskData['due_date'] = dueDate.toUtc().toIso8601String();
 
       final createdTask = await _apiService.createTask(newTaskData);
       taskList.add(createdTask);
-      _applyFilters(); // Обновляем список после создания
-      return true; // Успех
+      _applyFiltersAndSort(); // Обновляем доску
+      return true;
     } catch (e) {
       print("Error in TasksController createTask: $e");
       dialogErrorMessage.value = "Ошибка создания задачи: ${e.toString()}";
-      return false; // Неудача
+      return false;
+    } finally {
+      isDialogLoading.value = false; // Снимаем флаг загрузки
     }
   }
 
@@ -307,7 +549,7 @@ class TasksController extends GetxController {
       final index = taskList.indexWhere((t) => t.id == taskId);
       if (index != -1) {
         taskList[index] = updatedTask;
-        _applyFilters();
+        _applyFiltersAndSort();
       } else {
         print(
           "Warning: Updated task $taskId not found in local list. Forcing refetch.",
@@ -329,7 +571,7 @@ class TasksController extends GetxController {
       await _apiService.deleteTask(taskId);
       // Удаляем из обоих списков
       taskList.removeWhere((task) => task.id == taskId);
-      _applyFilters(); // Обновляем колонки доски
+      _applyFiltersAndSort(); // Обновляем колонки доски
       return true;
     } catch (e) {
       print("Error in TasksController deleteTask: $e");
@@ -512,20 +754,51 @@ class TasksController extends GetxController {
 
   // Метод для получения цвета пользователя (теперь без ChatsController)
   Color getUserColor(String userId) {
-    // Генерируем цвет на основе ID пользователя
     final hash = userId.hashCode;
-    final hue = (hash % 360).abs();
-    return HSLColor.fromAHSL(1, hue.toDouble(), 0.7, 0.5).toColor();
+    // Используем более насыщенные и разнообразные цвета
+    final hue = (hash % 360).toDouble();
+    // --- ИСПРАВЛЕНО: Ограничиваем значения ---
+    final saturation = (0.6 + (hash % 10).abs() / 20.0).clamp(0.6, 1.0);
+    final lightness = (0.4 + (hash % 20).abs() / 100.0).clamp(0.4, 0.6);
+    // ----------------------------------------
+    return HSLColor.fromAHSL(1.0, hue, saturation, lightness).toColor();
+  }
+
+  // --- НОВОЕ: Метод для получения имени контакта по ID ---
+  // Используется для отображения имени создателя в UI фильтров
+  String? getContactUsernameById(String userId) {
+    // Проверяем, инициализирован ли контроллер контактов
+    if (!Get.isRegistered<ContactsController>() ||
+        !_contactsController.initialized) {
+      // Возвращаем только ID, если контакты не загружены
+      // Можно также попробовать запустить загрузку контактов здесь, если это необходимо
+      print(
+        "Warning: ContactsController not initialized in getContactUsernameById for $userId",
+      );
+      return 'ID: $userId';
+    }
+    // Ищем контакт в загруженном списке
+    return _contactsController.contacts
+            .firstWhereOrNull((c) => c.id == userId)
+            ?.username ??
+        'ID: $userId'; // Возвращаем ID, если не найден
   }
 
   @override
   void onClose() {
+    // --- ОТЛАДКА: Логирование Close ---
+    print("TasksController[${this.hashCode}]: onClose START");
+    // -----------------------------------
     taskList.close();
     tasksByStatus.close();
     isLoading.close();
     errorMessage.close();
     searchTerm.close();
     assignedToMeFilter.close();
+    priorityFilter.close();
+    creatorFilter.close();
+    sortField.close();
+    sortDirection.close();
     isDialogLoading.close();
     dialogErrorMessage.close();
     dialogEditingTaskId.close();
@@ -539,5 +812,8 @@ class TasksController extends GetxController {
     updatingTaskIds.close();
     isUpdatingStatus.close();
     super.onClose();
+    // --- ОТЛАДКА: Логирование Close ---
+    print("TasksController[${this.hashCode}]: onClose END");
+    // -----------------------------------
   }
 }

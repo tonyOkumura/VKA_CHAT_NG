@@ -7,6 +7,6 @@ class TasksBinding extends Bindings {
   @override
   void dependencies() {
     Get.lazyPut<TaskApiService>(() => TaskApiService());
-    Get.lazyPut<TasksController>(() => TasksController());
+    Get.put<TasksController>(TasksController());
   }
 }
