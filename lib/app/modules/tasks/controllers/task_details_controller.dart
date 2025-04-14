@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:vka_chat_ng/app/data/models/task_model.dart';
 import 'package:vka_chat_ng/app/data/services/task_api_service.dart';
-// TODO: Импортировать модели для комментариев, вложений, логов, когда они понадобятся
-import 'package:vka_chat_ng/app/modules/chats/controllers/chats_controller.dart';
 
 class TaskDetailsController extends GetxController {
   final TaskApiService _apiService = Get.find<TaskApiService>();
@@ -68,45 +66,18 @@ class TaskDetailsController extends GetxController {
     }
   }
 
-  // --- TODO: Методы для загрузки комментариев, вложений, логов ---
-  // Future<void> fetchComments() async { ... }
-  // Future<void> addComment(String commentText) async { ... }
-  // Future<void> fetchAttachments() async { ... }
-  // Future<void> uploadAttachment(File file) async { ... }
-  // Future<void> fetchLogs() async { ... }
-
-  // TODO: Метод для обновления статуса задачи (если нужно)
-  // Future<void> updateTaskStatus(String newStatus) async { ... }
-
-  // --- Метод для получения цвета пользователя ---
   Color getUserColor(String userId) {
-    try {
-      final chatsController = Get.find<ChatsController>();
-      return chatsController.getUserColor(userId);
-    } catch (e) {
-      print(
-        "Could not get user color from ChatsController in TaskDetailsController, using fallback: $e",
-      );
-      final List<Color> fallbackColors = [
-        Colors.blue,
-        Colors.red,
-        Colors.green,
-        Colors.orange,
-        Colors.purple,
-        Colors.teal,
-      ];
-      final colorIndex = userId.hashCode % fallbackColors.length;
-      return fallbackColors[colorIndex];
-    }
+    // Генерируем цвет на основе ID пользователя
+    final hash = userId.hashCode;
+    final hue = (hash % 360).abs();
+    return HSLColor.fromAHSL(1, hue.toDouble(), 0.7, 0.5).toColor();
   }
-  // --------------------------------------------
 
   @override
   void onClose() {
     task.close();
     isLoading.close();
     errorMessage.close();
-    // TODO: Закрыть RxList для комментариев и т.д.
     super.onClose();
   }
 }

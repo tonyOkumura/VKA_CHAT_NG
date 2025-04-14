@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
-import 'package:intl/intl.dart';
 import 'package:vka_chat_ng/app/constants.dart';
 import 'package:vka_chat_ng/app/data/models/conversation_model.dart';
 import 'package:vka_chat_ng/app/data/models/message_model.dart';
@@ -13,7 +12,6 @@ import 'package:vka_chat_ng/app/data/models/message_reads_model.dart';
 import 'package:vka_chat_ng/app/data/models/contact_model.dart';
 import 'package:vka_chat_ng/app/services/socket_service.dart';
 import 'package:vka_chat_ng/app/services/file_service.dart';
-import 'package:vka_chat_ng/app/data/models/file_model.dart';
 import 'dart:async';
 import 'package:vka_chat_ng/app/services/notification_service.dart';
 
@@ -44,46 +42,12 @@ class ChatsController extends GetxController {
   Timer? _refreshTimer;
   bool _isUploading = false;
 
-  // Список предопределенных цветов для аватаров
-  final List<Color> avatarColors = [
-    Colors.blue.shade700,
-    Colors.red.shade700,
-    Colors.green.shade700,
-    Colors.orange.shade700,
-    Colors.purple.shade700,
-    Colors.teal.shade700,
-    Colors.pink.shade700,
-    Colors.indigo.shade700,
-    Colors.amber.shade700,
-    Colors.cyan.shade700,
-    Colors.grey.shade700,
-    Colors.lime.shade700,
-    Colors.deepPurple.shade700,
-    Colors.deepOrange.shade700,
-    Colors.blue.shade300,
-    Colors.red.shade300,
-    Colors.green.shade300,
-    Colors.orange.shade300,
-    Colors.purple.shade300,
-    Colors.teal.shade300,
-    Colors.pink.shade300,
-    Colors.indigo.shade300,
-    Colors.amber.shade300,
-    Colors.cyan.shade300,
-    Colors.grey.shade300,
-    Colors.lime.shade300,
-    Colors.deepPurple.shade300,
-    Colors.deepOrange.shade300,
-  ];
-
   // Получение или создание цвета для пользователя
   Color getUserColor(String userId) {
-    if (!userColors.containsKey(userId)) {
-      // Используем хэш userId для выбора цвета из списка
-      final colorIndex = userId.hashCode % avatarColors.length;
-      userColors[userId] = avatarColors[colorIndex];
-    }
-    return userColors[userId]!;
+    // Генерируем цвет на основе ID пользователя
+    final hash = userId.hashCode;
+    final hue = (hash % 360).abs();
+    return HSLColor.fromAHSL(1, hue.toDouble(), 0.7, 0.5).toColor();
   }
 
   @override
@@ -481,150 +445,6 @@ class ChatsController extends GetxController {
         }
       }
     }
-  }
-
-  List<MessageReads> getMessageReads(String messageId) {
-    return messageReads[messageId] ?? [];
-  }
-
-  void showMessageReadsDialog(
-    BuildContext context,
-    String messageId,
-    Offset position,
-    Size size,
-  ) {
-    final message = messages.firstWhere((m) => m.id == messageId);
-    // Фильтруем список прочитавших, исключая текущего пользователя
-    final reads =
-        (message.read_by_users ?? [])
-            .where((read) => read.contact_id != userId)
-            .toList();
-
-    if (reads.isEmpty) {
-      _showReadStatusPopup(context, position, size, [], false);
-      return;
-    }
-
-    _showReadStatusPopup(context, position, size, reads, true);
-  }
-
-  void _showReadStatusPopup(
-    BuildContext context,
-    Offset position,
-    Size size,
-    List<ReadByUser> reads,
-    bool hasReads,
-  ) {
-    showMenu(
-      context: context,
-      position: RelativeRect.fromLTRB(
-        position.dx,
-        position.dy - 200, // Увеличиваем отступ сверху
-        position.dx + size.width,
-        position.dy,
-      ),
-      items: [
-        PopupMenuItem(
-          enabled: false,
-          child: Container(
-            constraints: BoxConstraints(
-              maxWidth: 300,
-              maxHeight: 250, // Ограничиваем высоту контейнера
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  hasReads ? 'Прочитано' : 'Не прочитано',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: Get.theme.colorScheme.onSurface,
-                  ),
-                ),
-                SizedBox(height: 8),
-                Expanded(
-                  // Добавляем Expanded для прокрутки
-                  child: SingleChildScrollView(
-                    // Добавляем прокрутку
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (hasReads)
-                          ...reads.map(
-                            (read) => Padding(
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 4.0,
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  CircleAvatar(
-                                    radius: 12,
-                                    backgroundColor: getUserColor(
-                                      read.contact_id,
-                                    ),
-                                    child: Text(
-                                      read.username[0],
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ),
-                                  SizedBox(width: 8),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          read.username,
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            color:
-                                                Get.theme.colorScheme.onSurface,
-                                          ),
-                                        ),
-                                        Text(
-                                          DateFormat('HH:mm dd.MM.yyyy').format(
-                                            DateTime.parse(read.read_at),
-                                          ),
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color:
-                                                Get
-                                                    .theme
-                                                    .colorScheme
-                                                    .onSurfaceVariant,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          )
-                        else
-                          Text(
-                            'Сообщение еще никто не прочитал',
-                            style: TextStyle(
-                              color: Get.theme.colorScheme.onSurfaceVariant,
-                              fontSize: 14,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
   }
 
   void filterConversations(String query) {

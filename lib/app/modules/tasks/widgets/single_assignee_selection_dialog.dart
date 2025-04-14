@@ -60,7 +60,6 @@ class _SingleAssigneeSelectionDialogState
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return AlertDialog(
       title: const Text('Выберите исполнителя'),
       contentPadding: const EdgeInsets.only(top: 0), // Убираем отступ сверху

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get/get.dart';
 import 'package:sidebarx/sidebarx.dart';
+import 'package:vka_chat_ng/app/constants.dart';
 import 'package:vka_chat_ng/app/routes/app_pages.dart';
 
 class MainLayout extends StatelessWidget {
@@ -124,6 +125,11 @@ class AppSidebar extends StatelessWidget {
           fontFamily: 'Nunito',
           fontWeight: FontWeight.w600,
         ),
+        hoverTextStyle: TextStyle(
+          color: Get.theme.colorScheme.onPrimaryContainer,
+          fontSize: 16,
+          fontFamily: 'Nunito',
+        ),
       ),
       items: [
         SidebarXItem(
@@ -159,8 +165,8 @@ class AppSidebar extends StatelessWidget {
           label: 'logout'.tr,
           onTap: () {
             final _storage = FlutterSecureStorage();
-            _storage.delete(key: 'token');
-            _storage.delete(key: 'userId');
+            _storage.delete(key: AppKeys.token);
+            _storage.delete(key: AppKeys.userId);
             print("Logged out");
             Get.offAllNamed(Routes.LOGIN);
           },

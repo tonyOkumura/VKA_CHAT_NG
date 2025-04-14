@@ -1,5 +1,6 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:get/get.dart';
+import 'package:vka_chat_ng/app/routes/app_pages.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:vka_chat_ng/app/data/models/message_model.dart' as chat;
 
@@ -40,7 +41,7 @@ class NotificationService extends GetxService {
       await windowManager.focus();
 
       // Переходим на страницу чатов
-      Get.toNamed('/chats');
+      Get.toNamed(Routes.CHATS);
     }
   }
 

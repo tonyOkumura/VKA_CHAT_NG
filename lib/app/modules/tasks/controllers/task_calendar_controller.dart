@@ -78,7 +78,7 @@ class TaskCalendarController extends GetxController {
   List<TaskModel> getEventsForDay(DateTime day) {
     final normalizedDay = _normalizeDate(day);
     // Используем .value, чтобы получить текущее значение RxMap
-    return tasksByDueDate.value[normalizedDay] ?? [];
+    return tasksByDueDate[normalizedDay] ?? [];
   }
 
   // Обработка выбора дня

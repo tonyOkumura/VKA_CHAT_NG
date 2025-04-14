@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:vka_chat_ng/app/app.dart';
+import 'package:vka_chat_ng/app/constants.dart';
 import 'package:vka_chat_ng/app/controllers/language_controller.dart';
 import 'package:vka_chat_ng/app/modules/settings/controllers/settings_controller.dart';
 import 'package:vka_chat_ng/app/services/socket_service.dart';
@@ -30,7 +30,7 @@ Future<void> main() async {
 
   // Загрузка сохраненной темы
   final storage = FlutterSecureStorage();
-  final savedTheme = await storage.read(key: 'isDarkMode');
+  final savedTheme = await storage.read(key: AppKeys.isDarkMode);
   final isDarkMode = savedTheme == 'true';
   Get.changeThemeMode(isDarkMode ? ThemeMode.dark : ThemeMode.light);
 

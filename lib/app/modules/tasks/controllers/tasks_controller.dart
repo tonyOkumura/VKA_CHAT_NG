@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart'; // <-- Импорт для Secure Storage
-import 'package:vka_chat_ng/app/constants.dart'; // <-- Импорт для AppKeys
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:vka_chat_ng/app/constants.dart';
 import 'package:vka_chat_ng/app/data/models/task_model.dart';
 import 'package:vka_chat_ng/app/data/services/task_api_service.dart';
 import 'package:vka_chat_ng/app/data/models/contact_model.dart';
 import 'package:vka_chat_ng/app/modules/contacts/controllers/contacts_controller.dart';
-// import 'package:vka_chat_ng/app/modules/chats/controllers/chats_controller.dart'; // <-- Удаляем или комментируем эту строку
+
 import 'package:vka_chat_ng/app/modules/tasks/widgets/single_assignee_selection_dialog.dart';
-import 'package:collection/collection.dart'; // Для firstWhereOrNull
-// import 'package:kanban_board/kanban_board.dart'; // <-- УДАЛИТЬ
 import 'package:dio/dio.dart'; // <-- Импорт для DioError
 
 class TasksController extends GetxController {
@@ -514,27 +512,10 @@ class TasksController extends GetxController {
 
   // Метод для получения цвета пользователя (теперь без ChatsController)
   Color getUserColor(String userId) {
-    // Используем только запасной вариант генерации цвета на основе хеша ID
-    final List<Color> fallbackColors = [
-      Colors.blue.shade300,
-      Colors.red.shade300,
-      Colors.green.shade300,
-      Colors.orange.shade300,
-      Colors.purple.shade300,
-      Colors.teal.shade300,
-      Colors.pink.shade300,
-      Colors.indigo.shade300,
-      Colors.cyan.shade300,
-      Colors.brown.shade300,
-    ]; // Можно расширить список цветов
-
-    if (userId.isEmpty) {
-      return Colors.grey.shade400; // Цвет для пустого ID
-    }
-
-    // Вычисляем индекс на основе хеш-кода ID
-    final colorIndex = userId.hashCode.abs() % fallbackColors.length;
-    return fallbackColors[colorIndex];
+    // Генерируем цвет на основе ID пользователя
+    final hash = userId.hashCode;
+    final hue = (hash % 360).abs();
+    return HSLColor.fromAHSL(1, hue.toDouble(), 0.7, 0.5).toColor();
   }
 
   @override

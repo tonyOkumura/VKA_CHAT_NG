@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import '../controllers/tasks_controller.dart';
-import 'package:vka_chat_ng/app/data/models/contact_model.dart';
 
 class CreateEditTaskDialogContent extends StatelessWidget {
   // --- Принимаем контроллер через конструктор ---

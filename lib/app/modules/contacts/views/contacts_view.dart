@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:vka_chat_ng/app/services/socket_service.dart';
+
 import 'package:vka_chat_ng/app/widgets/main_layout.dart';
 import '../controllers/contacts_controller.dart';
 

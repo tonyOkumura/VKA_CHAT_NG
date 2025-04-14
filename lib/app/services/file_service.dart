@@ -1,14 +1,11 @@
 import 'dart:io';
 import 'dart:convert';
-import 'dart:io' show Platform;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
-import 'package:path_provider/path_provider.dart';
 import 'package:vka_chat_ng/app/constants.dart';
 import 'package:vka_chat_ng/app/data/models/file_model.dart';
-import 'package:vka_chat_ng/app/data/models/message_model.dart';
 
 class FileService extends GetxService {
   final _storage = FlutterSecureStorage();

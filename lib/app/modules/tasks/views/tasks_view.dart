@@ -9,6 +9,7 @@ import 'package:vka_chat_ng/app/routes/app_pages.dart'; // <-- Добавь им
 import 'dart:async'; // <-- Импорт для Timer (debounce)
 // Для firstWhereOrNull
 
+// ignore: must_be_immutable
 class TasksView extends GetView<TasksController> {
   TasksView({super.key});
 
@@ -31,14 +32,6 @@ class TasksView extends GetView<TasksController> {
     _searchController.clear(); // Очищаем поле
     // Вызываем controller.clearFilters, который сбросит все фильтры
     controller.clearFilters();
-  }
-
-  @override
-  void dispose() {
-    // Не забываем освобождать ресурсы
-    _searchController.dispose();
-    _debounce?.cancel();
-    // super.dispose(); // GetView не требует вызова super.dispose
   }
 
   @override
@@ -541,20 +534,6 @@ class TasksView extends GetView<TasksController> {
   }
 
   // Вспомогательная функция для цвета статуса (пример)
-  Color _getStatusColor(String status, ThemeData theme) {
-    switch (status) {
-      case 'open':
-        return Colors.blue.shade100;
-      case 'in_progress':
-        return Colors.orange.shade100;
-      case 'done':
-        return Colors.green.shade100;
-      case 'closed':
-        return Colors.grey.shade300;
-      default:
-        return theme.colorScheme.surfaceVariant;
-    }
-  }
 }
 
 // --- Виджет для карточки задачи ---

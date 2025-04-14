@@ -74,88 +74,9 @@ class ContactsController extends GetxController {
     super.onClose();
   }
 
-  // Включение режима выбора
-  void startSelectionMode() {
-    isSelectionMode.value = true;
-    selectedContacts.clear();
-  }
-
   // Отмена режима выбора
   void cancelSelectionMode() {
     isSelectionMode.value = false;
-    selectedContacts.clear();
-  }
-
-  // Подтверждение выбора и создание группы
-  Future<void> confirmSelectionAndCreateGroup({
-    required String groupName,
-  }) async {
-    if (selectedContacts.isEmpty) {
-      Get.snackbar(
-        'Ошибка',
-        'Выберите хотя бы одного участника',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-      return;
-    }
-
-    try {
-      String token = await _storage.read(key: AppKeys.token) ?? '';
-
-      // Создаем групповой чат
-      var createResponse = await http.post(
-        Uri.parse('$_baseUrl/conversations/group'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'name': groupName,
-          'participants': selectedContacts.toList(),
-        }),
-      );
-
-      if (createResponse.statusCode != 201) {
-        throw Exception('Не удалось создать групповой чат');
-      }
-
-      final data = jsonDecode(createResponse.body);
-      final conversationId = data['conversation_id'];
-
-      final _socketService = Get.find<SocketService>();
-      _socketService.joinConversation(conversationId);
-
-      Get.snackbar('Успешно', 'Групповой чат создан');
-    } catch (e) {
-      print('Error creating group chat: $e');
-      Get.snackbar(
-        'Ошибка',
-        'Произошла ошибка при создании группового чата',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    } finally {
-      cancelSelectionMode();
-    }
-  }
-
-  // Переключение выбора контакта
-  void toggleContactSelection(String contactId) {
-    if (!isSelectionMode.value) return;
-
-    if (selectedContacts.contains(contactId)) {
-      selectedContacts.remove(contactId);
-    } else {
-      selectedContacts.add(contactId);
-    }
-  }
-
-  // Проверка, выбран ли контакт
-  bool isContactSelected(String contactId) {
-    return selectedContacts.contains(contactId);
-  }
-
-  // Очистка выбранных контактов
-  void clearSelectedContacts() {
     selectedContacts.clear();
   }
 
@@ -227,20 +148,6 @@ class ContactsController extends GetxController {
         'Ошибка',
         'Произошла ошибка при создании чата',
         snackPosition: SnackPosition.BOTTOM,
-      );
-    }
-  }
-
-  // Обновление статуса контакта
-  void updateContactStatus(String userId, bool isOnline) {
-    final index = contacts.indexWhere((contact) => contact.id == userId);
-    if (index != -1) {
-      final contact = contacts[index];
-      contacts[index] = Contact(
-        id: contact.id,
-        username: contact.username,
-        email: contact.email,
-        isOnline: isOnline,
       );
     }
   }

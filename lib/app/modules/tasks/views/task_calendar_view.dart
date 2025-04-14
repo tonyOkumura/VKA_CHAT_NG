@@ -5,7 +5,6 @@ import 'package:table_calendar/table_calendar.dart';
 import 'package:vka_chat_ng/app/data/models/task_model.dart';
 import 'package:vka_chat_ng/app/routes/app_pages.dart';
 import '../controllers/task_calendar_controller.dart';
-import '../controllers/tasks_controller.dart'; // Нужен для TaskCard
 import 'tasks_view.dart'; // Импортируем для TaskCard и других виджетов, если нужны
 
 class TaskCalendarView extends GetView<TaskCalendarController> {
@@ -13,7 +12,6 @@ class TaskCalendarView extends GetView<TaskCalendarController> {
 
   @override
   Widget build(BuildContext context) {
-    final tasksController = Get.find<TasksController>();
     final theme = Theme.of(context);
     final isLargeScreen =
         MediaQuery.of(context).size.width > 600; // Определяем размер экрана

@@ -1,14 +1,9 @@
 import 'dart:io';
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
-import 'package:sidebarx/sidebarx.dart';
-import 'package:vka_chat_ng/app/data/models/chat_participant_model.dart';
 import 'package:vka_chat_ng/app/data/models/conversation_model.dart';
 import 'package:vka_chat_ng/app/data/models/message_model.dart';
-import 'package:vka_chat_ng/app/routes/app_pages.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:vka_chat_ng/app/widgets/main_layout.dart';
 import 'package:vka_chat_ng/app/services/file_service.dart';
