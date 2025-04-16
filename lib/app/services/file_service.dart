@@ -15,7 +15,7 @@ class FileService extends GetxService {
     try {
       // Получаем путь к папке Загрузки
       final downloadsPath = '${Platform.environment['USERPROFILE']}\\Downloads';
-      final vkaChatPath = '$downloadsPath\\VKA Chat';
+      final vkaChatPath = '$downloadsPath\\VKA_Chat';
       final filePath = '$vkaChatPath\\$fileName';
 
       final file = File(filePath);
@@ -137,13 +137,13 @@ class FileService extends GetxService {
 
       // Получаем путь к папке Загрузки
       final downloadsPath = '${Platform.environment['USERPROFILE']}\\Downloads';
-      final vkaChatPath = '$downloadsPath\\VKA Chat';
+      final vkaChatPath = '$downloadsPath\\VKA_Chat';
 
-      // Создаем папку VKA Chat, если она не существует
+      // Создаем папку VKA_Chat, если она не существует
       final vkaChatDir = Directory(vkaChatPath);
       if (!await vkaChatDir.exists()) {
         await vkaChatDir.create(recursive: true);
-        print('Created VKA Chat directory: $vkaChatPath');
+        print('Created VKA_Chat directory: $vkaChatPath');
       }
 
       // Если есть прямой URL для скачивания, используем его

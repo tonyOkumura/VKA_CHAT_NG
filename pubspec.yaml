@@ -28,6 +28,7 @@ environment:
 # the latest version available on pub.dev. To see which dependencies have newer
 # versions available, run `flutter pub outdated`.
 dependencies:
+  cached_network_image: ^3.4.1
   cupertino_icons: ^1.0.8
   dio: ^5.4.0
   dotted_border: ^2.1.0
@@ -44,6 +45,7 @@ dependencies:
   jwt_decode: ^0.3.1
   jwt_decoder: ^2.0.1
   lottie: ^3.3.1
+  open_file: ^3.5.10
   path_provider: ^2.1.2
   shared_preferences: ^2.2.2
   shimmer: ^3.0.0

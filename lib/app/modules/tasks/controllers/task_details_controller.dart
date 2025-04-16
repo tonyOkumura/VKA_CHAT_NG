@@ -222,7 +222,7 @@ class TaskDetailsController extends GetxController {
       if (downloadedFile != null) {
         Get.snackbar(
           'Успех',
-          'Файл "$fileName" сохранен в Загрузки/VKA Chat.',
+          'Файл "$fileName" сохранен в Загрузки/VKA_Chat.',
           snackPosition: SnackPosition.BOTTOM,
           duration: const Duration(seconds: 4),
         );
