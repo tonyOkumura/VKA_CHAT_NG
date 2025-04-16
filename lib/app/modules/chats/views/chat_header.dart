@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:vka_chat_ng/app/data/models/conversation_model.dart'; // Import Conversation model
+import 'package:vka_chat_ng/app/data/models/chat_participant_model.dart'; // Import ChatParticipant
 import 'package:vka_chat_ng/app/modules/chats/controllers/chats_controller.dart';
 import 'package:vka_chat_ng/app/modules/chats/views/widgets/chat_participants_popup.dart';
 import 'package:vka_chat_ng/app/modules/chats/views/widgets/group_settings_dialog.dart';
@@ -226,7 +227,9 @@ class ChatHeader extends StatelessWidget {
     ThemeData theme,
   ) {
     final colorScheme = theme.colorScheme;
+    final controller = Get.find<ChatsController>(); // Get controller
     final participantCount = conversation.participants?.length ?? 0;
+
     return InkWell(
       onTap: () => ChatParticipantsPopup.show(context, conversation),
       borderRadius: BorderRadius.circular(8),
@@ -245,29 +248,87 @@ class ChatHeader extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            if (participantCount > 0)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '$participantCount участ.',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
+            // Show participant count OR typing indicator
+            Obx(() {
+              final typingUserIds =
+                  controller.typingUsers[conversation.id]
+                      ?.where((id) => id != controller.userId) // Exclude self
+                      .toSet() ??
+                  {};
+
+              if (typingUserIds.isNotEmpty) {
+                // Build typing indicator string
+                String typingText = _buildTypingIndicatorText(
+                  typingUserIds,
+                  conversation.participants,
+                );
+                return Text(
+                  typingText,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.primary, // Use primary color
+                    fontStyle: FontStyle.italic,
                   ),
-                  Icon(
-                    Icons.arrow_drop_down,
-                    size: 18,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ],
-              )
-            else // Placeholder if no participants (shouldn't happen for group)
-              SizedBox(height: 16),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                );
+              } else {
+                // Show participant count if no one is typing
+                if (participantCount > 0) {
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '$participantCount участ.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      Icon(
+                        Icons.arrow_drop_down,
+                        size: 18,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ],
+                  );
+                } else {
+                  return SizedBox(height: 16);
+                }
+              }
+            }),
           ],
         ),
       ),
     );
+  }
+
+  // Helper to build the typing indicator text for groups
+  String _buildTypingIndicatorText(
+    Set<String> typingUserIds,
+    List<ChatParticipant>? participants,
+  ) {
+    if (participants == null || participants.isEmpty) {
+      return 'Печатает...'; // Fallback
+    }
+
+    List<String> typingNames = [];
+    for (String userId in typingUserIds) {
+      final participant = participants.firstWhereOrNull(
+        (p) => p.user_id == userId,
+      );
+      typingNames.add(
+        participant?.username ?? 'Кто-то',
+      ); // Add name or fallback (safe due to firstWhereOrNull)
+    }
+
+    if (typingNames.length == 1) {
+      return '${typingNames[0]} печатает...';
+    } else if (typingNames.length == 2) {
+      return '${typingNames[0]} и ${typingNames[1]} печатают...';
+    } else if (typingNames.length > 2) {
+      return 'Несколько человек печатают...';
+    } else {
+      return ''; // Should not happen if typingUserIds is not empty
+    }
   }
 
   Widget _buildDialogHeaderContent(Conversation conversation, ThemeData theme) {
@@ -301,7 +362,22 @@ class ChatHeader extends StatelessWidget {
                 controller.onlineUsers[otherParticipantId] ??
                 otherParticipant?.is_online ??
                 false;
-            if (isOnline) {
+            // Check if the other user is typing
+            final isTyping =
+                controller.typingUsers[conversation.id]?.contains(
+                  otherParticipantId,
+                ) ??
+                false;
+
+            if (isTyping) {
+              return Text(
+                'Печатает...', // Typing indicator text
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.primary, // Use primary color for typing?
+                  fontStyle: FontStyle.italic,
+                ),
+              );
+            } else if (isOnline) {
               return Text(
                 'Online',
                 style: theme.textTheme.bodySmall?.copyWith(

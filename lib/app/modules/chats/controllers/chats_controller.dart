@@ -73,6 +73,13 @@ class ChatsController extends GetxController {
   final filteredMessages = <Message>[].obs; // For in-chat search results
   // --- End Reactive Lists ---
 
+  // --- Typing Indicator State ---
+  final typingUsers =
+      <String, Set<String>>{}
+          .obs; // Key: conversationId, Value: Set of userIds typing
+  final Map<String, Timer> _typingTimers = {}; // Key: conversationId_userId
+  // --- End Typing Indicator State ---
+
   // Computed property for send button enablement
   bool get canSendMessage =>
       (messageText.value.trim().isNotEmpty ||
@@ -115,6 +122,11 @@ class ChatsController extends GetxController {
       }
     });
     // --- End listeners ---
+
+    // --- Register Socket Listeners ---
+    _socketService.socket.on('user_typing', _handleUserTyping);
+    _socketService.socket.on('user_stopped_typing', _handleUserStoppedTyping);
+    // --- End Register Socket Listeners ---
 
     fetchConversations().then((_) {
       for (var conversation in conversations) {
@@ -163,6 +175,14 @@ class ChatsController extends GetxController {
     scrollController.dispose();
     _socketService.socket.off('newMessage', handleIncomingMessage);
     _socketService.socket.off('messageRead', handleMessageRead);
+    // --- Unregister Socket Listeners ---
+    _socketService.socket.off('user_typing', _handleUserTyping);
+    _socketService.socket.off('user_stopped_typing', _handleUserStoppedTyping);
+    // --- End Unregister Socket Listeners ---
+    // Cancel any active typing timers
+    _typingTimers.values.forEach((timer) => timer.cancel());
+    _typingTimers.clear();
+
     _refreshTimer?.cancel();
     print('ChatsController disposed.');
     super.onClose();
@@ -1163,4 +1183,65 @@ class ChatsController extends GetxController {
   }
 
   // --- End Private method ---
+
+  // --- Socket Event Handlers for Typing Indicators ---
+  void _handleUserTyping(dynamic data) {
+    try {
+      final String conversationId = data['conversation_id'];
+      final String typingUserId = data['user_id'];
+
+      // Don't show indicator for self
+      if (typingUserId == userId) return;
+
+      // Add user to the typing set for the conversation
+      final currentTypingSet = typingUsers[conversationId] ?? <String>{};
+      currentTypingSet.add(typingUserId);
+      typingUsers[conversationId] = currentTypingSet;
+      typingUsers.refresh(); // Notify listeners
+
+      // Reset the timer for this user
+      final timerKey = '${conversationId}_$typingUserId';
+      _typingTimers[timerKey]?.cancel();
+      _typingTimers[timerKey] = Timer(const Duration(seconds: 3), () {
+        // If timer expires, remove the user from typing status
+        _handleUserStoppedTyping({
+          'conversation_id': conversationId,
+          'user_id': typingUserId,
+        });
+      });
+    } catch (e) {
+      print('Error handling user_typing event: $e');
+    }
+  }
+
+  void _handleUserStoppedTyping(dynamic data) {
+    try {
+      final String conversationId = data['conversation_id'];
+      final String stoppedUserId = data['user_id'];
+
+      // Remove user from the typing set
+      if (typingUsers.containsKey(conversationId)) {
+        final currentTypingSet = typingUsers[conversationId]!;
+        if (currentTypingSet.remove(stoppedUserId)) {
+          // If the set becomes empty after removal, remove the key
+          if (currentTypingSet.isEmpty) {
+            typingUsers.remove(conversationId);
+          } else {
+            // Otherwise, update the existing set
+            typingUsers[conversationId] = currentTypingSet;
+          }
+          typingUsers.refresh(); // Notify listeners
+        }
+      }
+
+      // Cancel the timer for this user
+      final timerKey = '${conversationId}_$stoppedUserId';
+      _typingTimers[timerKey]?.cancel();
+      _typingTimers.remove(timerKey);
+    } catch (e) {
+      print('Error handling user_stopped_typing event: $e');
+    }
+  }
+
+  // --- End Socket Event Handlers ---
 }

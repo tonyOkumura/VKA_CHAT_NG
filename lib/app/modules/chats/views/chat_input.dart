@@ -2,13 +2,89 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:vka_chat_ng/app/modules/chats/controllers/chats_controller.dart';
+import 'package:vka_chat_ng/app/services/socket_service.dart';
+import 'dart:async';
 
-class ChatInput extends StatelessWidget {
+class ChatInput extends StatefulWidget {
   const ChatInput({super.key});
 
   @override
+  State<ChatInput> createState() => _ChatInputState();
+}
+
+class _ChatInputState extends State<ChatInput> {
+  final ChatsController controller = Get.find<ChatsController>();
+  final SocketService socketService = Get.find<SocketService>();
+
+  bool _wasTyping = false;
+
+  @override
+  void initState() {
+    super.initState();
+    controller.messageController.addListener(_onTextChanged);
+  }
+
+  @override
+  void dispose() {
+    controller.messageController.removeListener(_onTextChanged);
+    if (_wasTyping) {
+      _sendStopTypingEvent();
+    }
+    super.dispose();
+  }
+
+  void _onTextChanged() {
+    if (controller.selectedConversation.value == null) return;
+
+    final conversationId = controller.selectedConversation.value!.id;
+    final text = controller.messageController.text;
+
+    if (text.isNotEmpty) {
+      if (!_wasTyping) {
+        _sendStartTypingEvent(conversationId);
+        setState(() {
+          _wasTyping = true;
+        });
+      }
+    } else {
+      if (_wasTyping) {
+        _sendStopTypingEvent();
+        setState(() {
+          _wasTyping = false;
+        });
+      }
+    }
+  }
+
+  void _sendStartTypingEvent(String conversationId) {
+    socketService.socket.emit('start_typing', {
+      'conversation_id': conversationId,
+      'user_id': controller.userId,
+    });
+    print('Sent start_typing for $conversationId');
+  }
+
+  void _sendStopTypingEvent() {
+    if (controller.selectedConversation.value == null) return;
+    socketService.socket.emit('stop_typing', {
+      'conversation_id': controller.selectedConversation.value!.id,
+      'user_id': controller.userId,
+    });
+    print('Sent stop_typing for ${controller.selectedConversation.value!.id}');
+  }
+
+  void _sendMessage() {
+    if (_wasTyping) {
+      _sendStopTypingEvent();
+      setState(() {
+        _wasTyping = false;
+      });
+    }
+    controller.sendMessage();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final controller = Get.find<ChatsController>();
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -79,11 +155,9 @@ class ChatInput extends StatelessWidget {
                   ),
                   cursorColor: colorScheme.primary,
                   onSubmitted: (value) {
-                    // Attempt to send message on submit
                     if (controller.canSendMessage) {
-                      controller.sendMessage();
+                      _sendMessage();
                     }
-                    // Keep focus after submit for easier multi-messaging
                   },
                 ),
               ),
@@ -108,8 +182,7 @@ class ChatInput extends StatelessWidget {
                                     : colorScheme.onSurface.withOpacity(0.3),
                           ),
                   tooltip: 'Отправить сообщение',
-                  onPressed:
-                      controller.canSendMessage ? controller.sendMessage : null,
+                  onPressed: controller.canSendMessage ? _sendMessage : null,
                 ),
               ),
             ],
