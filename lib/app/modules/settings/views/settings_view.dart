@@ -33,6 +33,20 @@ class SettingsView extends GetView<SettingsController> {
                     ),
                   ),
                   const Divider(),
+                  ListTile(
+                    leading: Icon(Icons.keyboard),
+                    title: Text('send_on_enter'.tr),
+                    subtitle: Text('send_on_enter_desc'.tr),
+                    trailing: Obx(
+                      () => Switch(
+                        value: controller.sendMessageOnEnter.value,
+                        onChanged: (value) {
+                          controller.toggleMessageSendSetting(value);
+                        },
+                      ),
+                    ),
+                  ),
+                  const Divider(),
                   const LanguageSelector(),
                   const Divider(),
                   ListTile(
@@ -68,7 +82,6 @@ class SettingsView extends GetView<SettingsController> {
                   ),
                   Container(
                     padding: EdgeInsets.all(16.0),
-
                     child: ElevatedButton(
                       onPressed: () => Get.offAndToNamed(Routes.CHATS),
                       style: ElevatedButton.styleFrom(

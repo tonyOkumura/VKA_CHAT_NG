@@ -222,7 +222,7 @@ class FileService extends GetxService {
           'json', 'xml', 'js', 'css', 'html',
         ],
         withData: true,
-        allowMultiple: false,
+        allowMultiple: true,
       );
     } catch (e) {
       print('Error picking file: $e');

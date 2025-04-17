@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:vka_chat_ng/app/constants.dart';
@@ -48,21 +49,44 @@ Future<void> main() async {
   // Инициализируй данные для локалей (например, русской 'ru')
   await initializeDateFormatting('ru', null);
 
-  runApp(
-    GetMaterialApp(
-      title: "VKA Chat",
-      theme: AppTheme.lightTheme(AppTheme.lightColorScheme),
-      darkTheme: AppTheme.darkTheme(AppTheme.darkColorScheme),
-      translations: AppTranslations(),
-      locale: Get.find<LanguageController>().locale.value,
-      fallbackLocale: const Locale('ru', 'RU'),
-      themeMode:
-          Get.find<SettingsController>().isDarkMode.value
-              ? ThemeMode.dark
-              : ThemeMode.light,
-      initialRoute: AppPages.INITIAL,
-      getPages: AppPages.routes,
-      debugShowCheckedModeBanner: false,
-    ),
-  );
+  runApp(MyApp());
+}
+
+// Функция для обработки нажатия Esc
+void _handleEscKeyPress(RawKeyEvent event) {
+  if (event is RawKeyDownEvent &&
+      event.logicalKey == LogicalKeyboardKey.escape) {
+    // Пытаемся закрыть текущий маршрут/диалог
+    if (Get.isDialogOpen == true || Get.isBottomSheetOpen == true) {
+      Get.back();
+    } else if (Get.key.currentState?.canPop() ?? false) {
+      // Используем Get.key.currentState для доступа к Navigator
+      Get.back();
+    }
+  }
+}
+
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return RawKeyboardListener(
+      focusNode: FocusNode(),
+      onKey: _handleEscKeyPress,
+      child: GetMaterialApp(
+        title: "VKA Chat",
+        theme: AppTheme.lightTheme(AppTheme.lightColorScheme),
+        darkTheme: AppTheme.darkTheme(AppTheme.darkColorScheme),
+        translations: AppTranslations(),
+        locale: Get.find<LanguageController>().locale.value,
+        fallbackLocale: const Locale('ru', 'RU'),
+        themeMode:
+            Get.find<SettingsController>().isDarkMode.value
+                ? ThemeMode.dark
+                : ThemeMode.light,
+        initialRoute: AppPages.INITIAL,
+        getPages: AppPages.routes,
+        debugShowCheckedModeBanner: false,
+      ),
+    );
+  }
 }

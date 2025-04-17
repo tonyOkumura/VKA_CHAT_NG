@@ -65,7 +65,7 @@ class AppPages {
       children: [
         GetPage(
           name: _Paths.TASK_DETAILS,
-          page: () => const TaskDetailsView(),
+          page: () => TaskDetailsView(),
           binding: TaskDetailsBinding(),
         ),
         GetPage(

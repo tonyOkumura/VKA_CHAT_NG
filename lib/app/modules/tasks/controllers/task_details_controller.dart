@@ -25,6 +25,7 @@ class TaskDetailsController extends GetxController {
   final RxBool isLoadingComments = false.obs;
   final RxnString commentsErrorMessage = RxnString();
   final TextEditingController commentInputController = TextEditingController();
+  final RxString commentText = ''.obs;
   final RxBool isSubmittingComment = false.obs;
   // ----------------------------------------
 
@@ -49,12 +50,6 @@ class TaskDetailsController extends GetxController {
   };
   // ----------------------------------------------------
 
-  // TODO: Добавить RxList для комментариев, вложений, логов
-  // final RxList<CommentModel> comments = <CommentModel>[].obs;
-  // final RxList<AttachmentModel> attachments = <AttachmentModel>[].obs;
-  // final RxList<LogModel> logs = <LogModel>[].obs;
-  // final RxBool isLoadingComments = false.obs; // и т.д. для других разделов
-
   @override
   void onInit() {
     super.onInit();
@@ -62,12 +57,13 @@ class TaskDetailsController extends GetxController {
     if (Get.arguments != null && Get.arguments is String) {
       taskId = Get.arguments as String;
       fetchTaskDetails();
-      // --- НОВОЕ: Загружаем комментарии при инициализации ---
       fetchComments();
       fetchLogs();
-      // --- НОВОЕ: Загружаем вложения при инициализации ---
       fetchAttachments();
-      // ----------------------------------------------------
+
+      commentInputController.addListener(() {
+        commentText.value = commentInputController.text;
+      });
     } else {
       // Обработка ошибки: ID задачи не передан
       print(
@@ -75,9 +71,13 @@ class TaskDetailsController extends GetxController {
       );
       errorMessage.value = "Ошибка: ID задачи не был передан.";
       isLoading.value = false;
-      // Можно автоматически закрыть экран
-      // Future.delayed(Duration(seconds: 1), () => Get.back());
     }
+  }
+
+  @override
+  void onClose() {
+    commentInputController.dispose();
+    super.onClose();
   }
 
   // Загрузка деталей задачи
@@ -114,19 +114,21 @@ class TaskDetailsController extends GetxController {
   }
 
   Future<void> submitComment() async {
-    final commentText = commentInputController.text.trim();
-    if (commentText.isEmpty) return;
+    final currentCommentText = commentText.value.trim();
+    if (currentCommentText.isEmpty) return;
 
     isSubmittingComment.value = true;
-    commentsErrorMessage.value = null; // Сбрасываем предыдущую ошибку
+    commentsErrorMessage.value = null;
 
     try {
-      final newComment = await _apiService.addComment(taskId, commentText);
-      comments.insert(0, newComment); // Добавляем новый коммент в начало списка
-      commentInputController.clear(); // Очищаем поле ввода
+      final newComment = await _apiService.addComment(
+        taskId,
+        currentCommentText,
+      );
+      comments.insert(0, newComment);
+      commentInputController.clear();
     } catch (e) {
       print("Error submitting comment for task $taskId: $e");
-      // Отображаем ошибку рядом с полем ввода или через SnackBar
       Get.snackbar(
         'Ошибка',
         'Не удалось отправить комментарий: ${e.toString()}',
@@ -134,7 +136,6 @@ class TaskDetailsController extends GetxController {
         backgroundColor: Colors.red,
         colorText: Colors.white,
       );
-      // Можно также установить commentsErrorMessage.value
     } finally {
       isSubmittingComment.value = false;
     }
@@ -204,12 +205,10 @@ class TaskDetailsController extends GetxController {
       }
     } else {
       print("File picking cancelled or failed.");
-      // Пользователь отменил выбор файла или произошла ошибка
     }
   }
 
   Future<void> downloadAttachment(String fileId, String fileName) async {
-    // Показываем SnackBar о начале загрузки
     Get.showSnackbar(
       GetSnackBar(
         message: 'Загрузка "$fileName"...',
@@ -227,9 +226,7 @@ class TaskDetailsController extends GetxController {
           duration: const Duration(seconds: 4),
         );
       } else {
-        throw Exception(
-          'Download function returned null',
-        ); // Генерируем исключение для catch
+        throw Exception('Download function returned null');
       }
     } catch (e) {
       print("Error downloading attachment $fileId: $e");
@@ -244,61 +241,46 @@ class TaskDetailsController extends GetxController {
   }
 
   Future<void> deleteAttachment(String attachmentId, String fileName) async {
-    // Показываем диалог подтверждения
     Get.dialog(
       AlertDialog(
         title: const Text('Удалить вложение?'),
-        content: Text(
-          'Вы уверены, что хотите удалить файл "$fileName"? Это действие необратимо.',
-        ),
+        content: Text('Вы уверены, что хотите удалить файл "$fileName"?'),
         actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text('Отмена')),
+          TextButton(child: const Text('Отмена'), onPressed: () => Get.back()),
           TextButton(
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Удалить', style: TextStyle(color: Colors.red)),
             onPressed: () async {
-              Get.back(); // Закрываем диалог
-              _performDeleteAttachment(
-                attachmentId,
-                fileName,
-              ); // Вызываем фактическое удаление
+              Get.back(); // Закрыть диалог
+              // Показываем индикатор, пока удаляется
+              Get.dialog(
+                Center(child: CircularProgressIndicator()),
+                barrierDismissible: false,
+              );
+              try {
+                await _apiService.deleteAttachment(taskId, attachmentId);
+                attachments.removeWhere((att) => att.id == attachmentId);
+                Get.back(); // Закрыть индикатор
+                Get.snackbar(
+                  'Успех',
+                  'Вложение "$fileName" удалено.',
+                  snackPosition: SnackPosition.BOTTOM,
+                );
+              } catch (e) {
+                Get.back(); // Закрыть индикатор
+                print("Error deleting attachment $attachmentId: $e");
+                Get.snackbar(
+                  'Ошибка',
+                  'Не удалось удалить вложение: ${e.toString()}',
+                  snackPosition: SnackPosition.BOTTOM,
+                  backgroundColor: Colors.red,
+                  colorText: Colors.white,
+                );
+              }
             },
-            child: const Text('Удалить'),
           ),
         ],
       ),
     );
-  }
-
-  // Приватный метод для фактического выполнения удаления после подтверждения
-  Future<void> _performDeleteAttachment(
-    String attachmentId,
-    String fileName,
-  ) async {
-    // Можно показать индикатор на конкретном элементе или глобальный
-    // attachments.firstWhereOrNull((att) => att.id == attachmentId)?.isLoadingDelete = true; // Пример
-    attachmentsErrorMessage.value = null;
-    try {
-      await _apiService.deleteAttachment(taskId, attachmentId);
-      attachments.removeWhere((att) => att.id == attachmentId);
-      Get.snackbar(
-        'Успех',
-        'Файл "$fileName" удален.',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    } catch (e) {
-      print("Error deleting attachment $attachmentId: $e");
-      Get.snackbar(
-        'Ошибка',
-        'Не удалось удалить файл "$fileName": ${e.toString()}',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-      attachmentsErrorMessage.value = "Ошибка удаления файла.";
-    } finally {
-      // Снять индикатор, если используется
-      // attachments.firstWhereOrNull((att) => att.id == attachmentId)?.isLoadingDelete = false;
-    }
   }
 
   Color getUserColor(String userId) {
@@ -306,31 +288,5 @@ class TaskDetailsController extends GetxController {
     final hash = userId.hashCode;
     final hue = (hash % 360).abs();
     return HSLColor.fromAHSL(1, hue.toDouble(), 0.7, 0.5).toColor();
-  }
-
-  @override
-  void onClose() {
-    task.close();
-    isLoading.close();
-    errorMessage.close();
-    // --- НОВОЕ: Закрываем ресурсы комментариев ---
-    comments.close();
-    isLoadingComments.close();
-    commentsErrorMessage.close();
-    commentInputController.dispose();
-    isSubmittingComment.close();
-    // ------------------------------------------
-    // --- НОВОЕ: Закрываем ресурсы логов ---
-    logs.close();
-    isLoadingLogs.close();
-    logsErrorMessage.close();
-    // -------------------------------------
-    // --- НОВОЕ: Закрываем ресурсы вложений ---
-    attachments.close();
-    isLoadingAttachments.close();
-    attachmentsErrorMessage.close();
-    isUploadingAttachment.close();
-    // ----------------------------------------
-    super.onClose();
   }
 }

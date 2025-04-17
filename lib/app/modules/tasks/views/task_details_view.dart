@@ -1,16 +1,45 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Добавляем импорт
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import '../controllers/task_details_controller.dart';
 // Импорты для виджетов, если понадобятся (например, для отображения исполнителей)
 import '../../../data/models/task_model.dart'; // TaskModel
 import '../../../data/models/file_model.dart'; // FileModel
+import '../../../data/models/comment_model.dart';
+import '../../../data/models/log_entry_model.dart';
+// Импорт SettingsController для доступа к настройке
+import '../../settings/controllers/settings_controller.dart';
+
+// Определяем намерение для отправки комментария
+class SubmitCommentIntent extends Intent {}
 
 class TaskDetailsView extends GetView<TaskDetailsController> {
-  const TaskDetailsView({super.key});
+  // Убираем const, так как settingsController инициализируется не константой
+  TaskDetailsView({super.key});
+
+  // Получаем SettingsController
+  final SettingsController settingsController = Get.find<SettingsController>();
+
+  // Убираем _handleCommentKeyPress
+  // void _handleCommentKeyPress(RawKeyEvent event) { ... }
 
   @override
   Widget build(BuildContext context) {
+    // Определяем действие для отправки комментария
+    // Делаем это здесь, чтобы иметь доступ к 'controller'
+    final submitCommentAction = CallbackAction<SubmitCommentIntent>(
+      onInvoke: (intent) {
+        final bool canSubmit =
+            controller.commentInputController.text.trim().isNotEmpty &&
+            !controller.isSubmittingComment.value;
+        if (canSubmit) {
+          controller.submitComment();
+        }
+        return null;
+      },
+    );
+
     return Scaffold(
       appBar: AppBar(
         // Заголовок будет меняться при загрузке
@@ -64,16 +93,20 @@ class TaskDetailsView extends GetView<TaskDetailsController> {
         // --- Отображение деталей задачи ---
         else {
           final task = controller.task.value!;
-          return _buildTaskDetailsContent(context, task);
+          // Передаем submitCommentAction в _buildTaskDetailsContent
+          return _buildTaskDetailsContent(context, task, submitCommentAction);
         }
       }),
-      // TODO: Можно добавить поле для ввода комментария и кнопку отправки
-      // bottomNavigationBar: _buildCommentInput(),
     );
   }
 
   // Виджет для отображения основного контента деталей
-  Widget _buildTaskDetailsContent(BuildContext context, TaskModel task) {
+  // Принимает submitCommentAction
+  Widget _buildTaskDetailsContent(
+    BuildContext context,
+    TaskModel task,
+    Action<SubmitCommentIntent> submitCommentAction,
+  ) {
     final dateFormat = DateFormat('dd.MM.yyyy HH:mm');
     final theme = Theme.of(context);
 
@@ -174,7 +207,8 @@ class TaskDetailsView extends GetView<TaskDetailsController> {
 
         // --- Секция Комментарии ---
         _buildSectionHeader(context, 'Комментарии', Icons.comment_outlined),
-        _buildCommentsSection(context, theme), // Используем новый метод
+        // Передаем submitCommentAction в _buildCommentsSection
+        _buildCommentsSection(context, theme, submitCommentAction),
         const SizedBox(height: 16),
 
         // --- TODO: Секция Вложения ---
@@ -194,7 +228,6 @@ class TaskDetailsView extends GetView<TaskDetailsController> {
     );
   }
 
-  // Вспомогательный виджет для заголовков секций
   Widget _buildSectionHeader(
     BuildContext context,
     String title,
@@ -212,19 +245,16 @@ class TaskDetailsView extends GetView<TaskDetailsController> {
     );
   }
 
-  // Вспомогательный виджет для строки информации
   Widget _buildInfoRow({
     required IconData icon,
     required String label,
     required String value,
     required ThemeData theme,
-    Color? valueColor, // Добавляем опциональный цвет
-    FontWeight? valueWeight, // Добавляем опциональную насыщенность
+    Color? valueColor,
+    FontWeight? valueWeight,
   }) {
     return Row(
-      crossAxisAlignment:
-          CrossAxisAlignment
-              .start, // Выравнивание по верху, если текст переносится
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
         const SizedBox(width: 8),
@@ -238,17 +268,15 @@ class TaskDetailsView extends GetView<TaskDetailsController> {
           child: Text(
             value,
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: valueColor, // Применяем цвет
-              fontWeight: valueWeight, // Применяем насыщенность
+              color: valueColor,
+              fontWeight: valueWeight,
             ),
-            // overflow: TextOverflow.ellipsis, // Убираем, чтобы видеть полную дату/имя
           ),
         ),
       ],
     );
   }
 
-  // Вспомогательный виджет для плашки статуса/приоритета
   Widget _buildInfoChip({
     required IconData icon,
     required String label,
@@ -283,7 +311,6 @@ class TaskDetailsView extends GetView<TaskDetailsController> {
     );
   }
 
-  // --- Вспомогательные функции для иконок/цветов (можно взять из TaskListItem) ---
   Color _getPriorityColor(int priority) {
     switch (priority) {
       case 1:
@@ -312,189 +339,196 @@ class TaskDetailsView extends GetView<TaskDetailsController> {
     }
   }
 
-  // --- НОВЫЙ ВИДЖЕТ: Секция комментариев ---
-  Widget _buildCommentsSection(BuildContext context, ThemeData theme) {
+  // --- НОВЫЙ ВИДЖЕТ: Секция комментариев --- (Принимает submitCommentAction)
+  Widget _buildCommentsSection(
+    BuildContext context,
+    ThemeData theme,
+    Action<SubmitCommentIntent> submitCommentAction,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // --- Поле ввода нового комментария ---
-        Padding(
-          padding: const EdgeInsets.only(top: 8.0, bottom: 16.0),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: controller.commentInputController,
-                  decoration: InputDecoration(
-                    hintText: 'Написать комментарий...',
-                    isDense: true,
-                    filled: true,
-                    fillColor: theme.colorScheme.surfaceVariant.withOpacity(
-                      0.4,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12.0),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12.0,
-                      vertical: 10.0,
-                    ),
-                    // TODO: Можно добавить индикатор ошибки от commentsErrorMessage
-                  ),
-                  minLines: 1,
-                  maxLines: 5, // Позволяем вводить несколько строк
-                  textInputAction:
-                      TextInputAction.newline, // Для многострочного ввода
-                ),
-              ),
-              const SizedBox(width: 8),
-              Obx(
-                () => IconButton(
-                  icon:
-                      controller.isSubmittingComment.value
-                          ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                          : const Icon(Icons.send_outlined),
-                  onPressed:
-                      controller.isSubmittingComment.value
-                          ? null
-                          : controller.submitComment,
-                  tooltip: 'Отправить комментарий',
-                  style: IconButton.styleFrom(
-                    backgroundColor: theme.colorScheme.primary,
-                    foregroundColor: theme.colorScheme.onPrimary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        // --- Список комментариев ---
+        // Передаем submitCommentAction в _buildCommentInputField
+        _buildCommentInputField(context, theme, submitCommentAction),
+        const SizedBox(height: 10),
         Obx(() {
-          if (controller.isLoadingComments.value &&
-              controller.comments.isEmpty) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(16.0),
-                child: CircularProgressIndicator(),
-              ),
-            );
-          }
           if (controller.commentsErrorMessage.value != null) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16.0),
-                child: Column(
-                  children: [
-                    const Icon(
-                      Icons.error_outline,
-                      color: Colors.orange,
-                      size: 32,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      controller.commentsErrorMessage.value!,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.orange.shade800),
-                    ),
-                    const SizedBox(height: 8),
-                    ElevatedButton(
-                      onPressed: controller.fetchComments,
-                      child: const Text('Повторить'),
-                    ),
-                  ],
-                ),
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8.0),
+              child: Text(
+                'Ошибка: ${controller.commentsErrorMessage.value}',
+                style: TextStyle(color: theme.colorScheme.error),
               ),
             );
           }
-          if (controller.comments.isEmpty) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 24.0),
-                child: Text(
-                  'Комментариев пока нет.',
-                  style: TextStyle(color: Colors.grey),
-                ),
-              ),
+          return const SizedBox.shrink();
+        }),
+        Obx(() {
+          if (controller.isLoadingComments.value) {
+            return const Center(child: CircularProgressIndicator());
+          } else if (controller.comments.isEmpty) {
+            return const Text('Комментариев пока нет.');
+          } else {
+            return ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: controller.comments.length,
+              itemBuilder: (context, index) {
+                final comment = controller.comments[index];
+                return _buildCommentItem(comment, theme);
+              },
+              separatorBuilder: (context, index) => const Divider(height: 1),
             );
           }
-          // Используем ListView.separated для добавления разделителей
-          return ListView.separated(
-            shrinkWrap: true, // Важно внутри другого ListView
-            physics:
-                const NeverScrollableScrollPhysics(), // Отключаем свою прокрутку
-            itemCount: controller.comments.length,
-            separatorBuilder:
-                (context, index) => const Divider(height: 12, thickness: 0.5),
-            itemBuilder: (context, index) {
-              final comment = controller.comments[index];
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6.0),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Аватар комментатора (можно использовать getUserColor)
-                    CircleAvatar(
-                      radius: 18,
-                      backgroundColor: controller
-                          .getUserColor(comment.commenterId)
-                          .withOpacity(0.8),
-                      foregroundColor: Colors.white,
-                      child: Text(
-                        (comment.commenterUsername?.isNotEmpty ?? false)
-                            ? comment.commenterUsername![0].toUpperCase()
-                            : '?',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Text(
-                                comment.commenterUsername ??
-                                    'ID: ${comment.commenterId}',
-                                style: theme.textTheme.titleSmall?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const Spacer(),
-                              Text(
-                                comment
-                                    .formattedCreatedAt, // Используем геттер из модели
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            comment.comment,
-                            style: theme.textTheme.bodyMedium,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          );
         }),
       ],
+    );
+  }
+
+  // --- Виджет поля ввода комментария --- (Принимает submitCommentAction)
+  Widget _buildCommentInputField(
+    BuildContext context,
+    ThemeData theme,
+    Action<SubmitCommentIntent> submitCommentAction,
+  ) {
+    final colorScheme = theme.colorScheme;
+
+    // Определяем сочетания клавиш на основе настройки
+    final Map<ShortcutActivator, Intent> shortcuts = {
+      if (settingsController.sendMessageOnEnter.value)
+        LogicalKeySet(LogicalKeyboardKey.enter): SubmitCommentIntent(),
+      if (!settingsController.sendMessageOnEnter.value)
+        LogicalKeySet(LogicalKeyboardKey.shift, LogicalKeyboardKey.enter):
+            SubmitCommentIntent(),
+    };
+
+    // Определяем действия
+    final Map<Type, Action<Intent>> actions = {
+      SubmitCommentIntent: submitCommentAction,
+    };
+
+    return Actions(
+      actions: actions,
+      child: Shortcuts(
+        shortcuts: shortcuts,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: TextField(
+                controller: controller.commentInputController,
+                // Важно: Связываем FocusNode с TextField, если нужно управлять фокусом
+                // focusNode: controller.commentFocusNode, // <- Раскомментировать и добавить в контроллер при необходимости
+                maxLines: 4,
+                minLines: 1,
+                textInputAction: TextInputAction.newline,
+                keyboardType: TextInputType.multiline,
+                decoration: InputDecoration(
+                  hintText: 'Добавить комментарий...',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12.0),
+                    borderSide: BorderSide(color: colorScheme.outline),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12.0),
+                    borderSide: BorderSide(color: colorScheme.outline),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12.0),
+                    borderSide: BorderSide(
+                      color: colorScheme.primary,
+                      width: 2,
+                    ),
+                  ),
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 12.0,
+                    vertical: 10.0,
+                  ),
+                  isDense: true,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Obx(() {
+              // Используем controller.commentText.value для проверки
+              final canSubmit =
+                  controller.commentText.value
+                      .trim()
+                      .isNotEmpty && // <-- Используем реактивную переменную
+                  !controller.isSubmittingComment.value;
+              return IconButton(
+                icon:
+                    controller.isSubmittingComment.value
+                        ? SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                        : Icon(
+                          Icons.send,
+                          color:
+                              canSubmit
+                                  ? colorScheme.primary
+                                  : colorScheme.onSurface.withOpacity(0.3),
+                        ),
+                tooltip: 'Отправить комментарий',
+                onPressed:
+                    canSubmit
+                        ? () => Actions.invoke(context, SubmitCommentIntent())
+                        : null,
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- Виджет одного комментария ---
+  Widget _buildCommentItem(CommentModel comment, ThemeData theme) {
+    final dateFormat = DateFormat('dd.MM.yyyy HH:mm');
+    // Используем commenterUsername, добавив проверку на null/empty
+    final authorName =
+        comment.commenterUsername?.isNotEmpty ?? false
+            ? comment.commenterUsername!
+            : 'ID: ${comment.commenterId}'; // Фоллбэк на ID
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            backgroundColor: theme.colorScheme.secondaryContainer,
+            child: Text(
+              authorName.isNotEmpty ? authorName[0].toUpperCase() : '?',
+              style: TextStyle(color: theme.colorScheme.onSecondaryContainer),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  authorName,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  dateFormat.format(comment.createdAt.toLocal()),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(comment.comment, style: theme.textTheme.bodyMedium),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -667,4 +701,21 @@ class TaskDetailsView extends GetView<TaskDetailsController> {
   // --- TODO: Методы для навигации на редактирование или подтверждения удаления ---
   // void _navigateToEdit() { ... }
   // void _confirmDelete() { ... }
+}
+
+// Определяем класс действия для отправки комментария (можно сделать его более общим)
+class SubmitCommentAction extends Action<SubmitCommentIntent> {
+  final TaskDetailsController controller; // Передаем контроллер
+  SubmitCommentAction(this.controller);
+
+  @override
+  Object? invoke(SubmitCommentIntent intent) {
+    final bool canSubmit =
+        controller.commentInputController.text.trim().isNotEmpty &&
+        !controller.isSubmittingComment.value;
+    if (canSubmit) {
+      controller.submitComment();
+    }
+    return null;
+  }
 }

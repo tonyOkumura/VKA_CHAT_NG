@@ -1,5 +1,6 @@
 import 'dart:async'; // Add import for StreamSubscription
 
+import 'package:desktop_drop/desktop_drop.dart'; // <-- Импорт
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:vka_chat_ng/app/modules/chats/controllers/chats_controller.dart';
@@ -147,10 +148,77 @@ class _ChatMessagesState extends State<ChatMessages> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    // Оборачиваем в DropTarget и Obx
+    return DropTarget(
+      onDragDone: (details) {
+        controller.handleFileDrop(details.files);
+      },
+      onDragEntered: (details) {
+        controller.handleDragEntered();
+      },
+      onDragExited: (details) {
+        controller.handleDragExited();
+      },
+      child: Obx(() {
+        final isDragging = controller.isDragOverChatDetail.value;
+        // Добавляем контейнер для визуальной обратной связи
+        return Container(
+          color:
+              isDragging
+                  ? colorScheme.primaryContainer.withOpacity(0.1)
+                  : colorScheme
+                      .surfaceContainerLowest, // Используем цвет фона чата
+          child: Stack(
+            children: [
+              // Основной контент (список сообщений)
+              _buildMessageList(context),
+              // Оверлей, который показывается при перетаскивании
+              if (isDragging)
+                Positioned.fill(
+                  child: Container(
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: colorScheme.scrim.withOpacity(0.5),
+                      // Можно добавить рамку
+                      // border: Border.all(color: colorScheme.primary, width: 3, style: BorderStyle.solid),
+                      // borderRadius: BorderRadius.circular(12), // Если нужна скругленная рамка
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.upload_file_rounded,
+                          size: 60,
+                          color: colorScheme.onPrimaryContainer,
+                        ),
+                        SizedBox(height: 16),
+                        Text(
+                          'Перетащите файл сюда для отправки',
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            color: colorScheme.onPrimaryContainer,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      }),
+    );
+  }
+
+  // Выносим логику построения списка в отдельный метод
+  Widget _buildMessageList(BuildContext context) {
     return Obx(() {
       if (controller.isLoadingMessages.value &&
           !controller.isChatSearchActive.value) {
-        // Show loading indicator only if not searching
         return const Center(child: CircularProgressIndicator());
       }
 
@@ -167,36 +235,27 @@ class _ChatMessagesState extends State<ChatMessages> {
         } else if (!controller.isLoadingMessages.value) {
           return Center(child: Text('no_messages_yet'.tr));
         }
-        // If loading but search is active, show empty state until results load or don't match
-        // Or show a different indicator?
-        return const SizedBox.shrink(); // Or Center(child: Text('Поиск...'))
+        return const SizedBox.shrink();
       }
 
-      // Use ListView.builder when searching, AnimatedList otherwise
       if (isSearching) {
         return ListView.builder(
           controller: controller.scrollController,
           reverse: true,
           padding: const EdgeInsets.symmetric(vertical: 10.0),
-          itemCount: displayList.length, // Use filtered list length
+          itemCount: displayList.length,
           itemBuilder: (context, index) {
-            // Call _buildItem without animation for search mode
             return _buildItem(context, index, null, true);
           },
         );
       } else {
-        // Build the AnimatedList if messages exist and not searching
         return AnimatedList(
           key: _listKey,
           controller: controller.scrollController,
           reverse: true,
           padding: const EdgeInsets.symmetric(vertical: 10.0),
-          // Use the count stored in the state, managed by the listener
-          // For simplicity when not searching, let's use reactive length directly
-          // _previousMessageCount logic might become complex with filtering interaction
           initialItemCount: controller.messages.length,
           itemBuilder: (context, index, animation) {
-            // Call _buildItem with animation when not searching
             return _buildItem(context, index, animation, false);
           },
         );

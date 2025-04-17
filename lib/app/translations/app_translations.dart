@@ -82,6 +82,11 @@ class AppTranslations extends Translations {
       'message_status': 'Статус сообщения',
       'message_sent': 'Отправлено',
       'message_delivered': 'Доставлено',
+
+      // Настройки отправки сообщений
+      'send_on_enter': 'Отправка по Enter',
+      'send_on_enter_desc':
+          'Отправлять сообщение по нажатию Enter (Shift+Enter для новой строки)',
     },
     'en_US': {
       // General
@@ -141,14 +146,14 @@ class AppTranslations extends Translations {
       'privacy': 'Privacy',
       'help_support': 'Help & Support',
 
-      // Статусы прочтения сообщений
+      // Message read status
       'message_read': 'Read',
       'message_not_read': 'Not Read',
       'message_no_reads': 'No one has read this message yet',
       'message_read_by': 'Read by',
       'message_read_at': 'Read at',
 
-      // Новые переводы для chats_view
+      // New translations for chats_view
       'no_messages': 'No messages',
       'no_chats': 'No chats',
       'loading': 'Loading...',
@@ -162,6 +167,11 @@ class AppTranslations extends Translations {
       'message_status': 'Message status',
       'message_sent': 'Sent',
       'message_delivered': 'Delivered',
+
+      // Message send settings
+      'send_on_enter': 'Send on Enter',
+      'send_on_enter_desc':
+          'Send message on Enter key (Shift+Enter for new line)',
     },
   };
 }

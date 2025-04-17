@@ -1,7 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:cross_file/cross_file.dart'; // Для XFile в handleFileDrop
+import 'package:desktop_drop/desktop_drop.dart'; // <-- Добавляем импорт
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // <-- Добавляем импорт
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
@@ -46,10 +49,13 @@ class ChatsController extends GetxController {
   final isLoading = false.obs;
   final isLoadingMessages = false.obs;
   final isSendingMessage = false.obs;
-  final selectedFile = Rxn<File>();
+  final RxList<File> filesToSend = <File>[].obs; // <-- Заменяем на список
   final selectedTab = 0.obs; // 0 - чаты, 1 - диалоги
   final isChatSearchActive = false.obs;
   final isLoadingUsers = false.obs;
+  final RxBool isDragOverChatDetail = false.obs;
+  final RxBool isDragOverDialog = false.obs; // <-- Для drag-n-drop в диалоге
+  final RxBool isFileSendDialogOpen = false.obs; // <-- Флаг для диалога
   // --- End Loading & State Flags ---
 
   // --- Reactive Text Values ---
@@ -61,6 +67,7 @@ class ChatsController extends GetxController {
   // --- Services & User Info ---
   late SocketService _socketService;
   late String userId;
+  late FileService _fileService; // <-- Добавляем FileService
   // --- End Services & User Info ---
 
   // --- Other Controllers & Timers ---
@@ -82,8 +89,7 @@ class ChatsController extends GetxController {
 
   // Computed property for send button enablement
   bool get canSendMessage =>
-      (messageText.value.trim().isNotEmpty ||
-          selectedFile.value != null) && // Use messageText here
+      (messageText.value.trim().isNotEmpty || filesToSend.isNotEmpty) &&
       !isSendingMessage.value;
 
   // Получение или создание цвета для пользователя
@@ -99,6 +105,7 @@ class ChatsController extends GetxController {
     super.onInit();
     print('ChatsController initialized.');
     _socketService = Get.find<SocketService>();
+    _fileService = Get.find<FileService>(); // <-- Инициализируем FileService
     _initializeUserId();
 
     // --- Add listeners for text controllers ---
@@ -397,82 +404,101 @@ class ChatsController extends GetxController {
     }
   }
 
-  Future<void> sendMessage() async {
-    if (!canSendMessage || selectedConversation.value == null) {
-      print('Cannot send message. Condition not met.');
-      return;
-    }
+  // Основной метод, вызываемый кнопкой и Enter
+  Future<void> sendCurrentInput() async {
+    if (!canSendMessage || selectedConversation.value == null) return;
 
     isSendingMessage.value = true;
     final messageContent = messageText.value.trim();
-    final fileToSend = selectedFile.value;
+    final filesToUpload = List<File>.from(filesToSend);
 
-    // Clear input immediately
-    messageController
-        .clear(); // This triggers the listener, clearing messageText
-    selectedFile.value = null;
+    // Очищаем списки и поле ввода СРАЗУ
+    final bool hadFiles = filesToUpload.isNotEmpty;
+    final bool hadText = messageContent.isNotEmpty;
+    messageController.clear(); // Очищаем текст в любом случае
+    filesToSend.clear(); // Очищаем выбранные файлы
 
     try {
-      if (fileToSend != null) {
-        // --- Send with File ---
-        print('Sending message with file: ${fileToSend.path}');
-        final fileService = Get.find<FileService>();
-        final result = await fileService.uploadFileWithMessage(
-          file: fileToSend,
-          conversationId: selectedConversation.value!.id,
-          senderId: userId,
-          content: messageContent, // Send text along with file
+      if (hadFiles) {
+        // Отправляем файлы последовательно с ПУСТЫМ content
+        print(
+          'Sending ${filesToUpload.length} files (always with empty content)...',
         );
-
-        if (result != null && result.containsKey('message')) {
-          print('File upload successful, server response: $result');
-          final message = Message.fromJson(result['message']);
-          // Server response already contains the message, no need to add locally?
-          // Assuming socket event 'newMessage' will deliver it correctly.
-          // _addMessageLocally(message); // Maybe redundant if socket works
-          _updateConversationLastMessage(message); // Update list view
-        } else {
-          print('Failed to upload file: Invalid server response');
-          // Handle error: Maybe show snackbar, restore input?
-          // For now, just log it.
-          Get.snackbar(
-            'Ошибка',
-            'Не удалось отправить файл',
-            snackPosition: SnackPosition.BOTTOM,
-          );
+        for (int i = 0; i < filesToUpload.length; i++) {
+          final file = filesToUpload[i];
+          // Всегда отправляем с пустым content
+          await _uploadSingleFile(file, '');
         }
-      } else if (messageContent.isNotEmpty) {
-        // --- Send Text Only ---
-        print('Sending text message: $messageContent');
-        // Optimistically add message locally? Maybe not needed if socket is fast.
-        _socketService.sendMessageWithParams(
-          selectedConversation.value!.id,
-          messageContent,
-          userId,
-        );
-        // Don't add locally, wait for 'newMessage' event to avoid duplicates
-        // and ensure correct 'read_by_users' status.
+        // НЕ отправляем текст отдельно, если были файлы
+      } else if (hadText) {
+        // Отправляем только текст, если не было файлов
+        await _sendTextMessage(messageContent);
       }
     } catch (e) {
-      print('Error sending message: $e');
+      print('Error during sendCurrentInput: $e');
+      Get.snackbar(
+        'Ошибка отправки',
+        'Произошла ошибка при отправке сообщения или файлов.',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      // Потенциально можно вернуть текст/файлы в поле ввода, если произошла ошибка?
+    } finally {
+      isSendingMessage.value = false;
+    }
+  }
+
+  Future<void> _uploadSingleFile(File file, String content) async {
+    if (selectedConversation.value == null) return;
+    print('Uploading file: ${file.path} with content: "$content"');
+    try {
+      final result = await _fileService.uploadFileWithMessage(
+        file: file,
+        conversationId: selectedConversation.value!.id,
+        senderId: userId,
+        content: content, // Передаем текст (пустой для последующих файлов)
+      );
+      if (result != null && result.containsKey('message')) {
+        print('File upload successful, server response: $result');
+        final message = Message.fromJson(result['message']);
+        _updateConversationLastMessage(message);
+        // Не добавляем сообщение локально, ждем сокет
+      } else {
+        print('Failed to upload file: ${file.path}');
+        Get.snackbar(
+          'Ошибка файла',
+          'Не удалось отправить файл: ${file.path.split(Platform.pathSeparator).last}',
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      }
+    } catch (e) {
+      print('Error uploading file ${file.path}: $e');
+      Get.snackbar(
+        'Ошибка файла',
+        'Ошибка при отправке файла: ${file.path.split(Platform.pathSeparator).last}',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    }
+  }
+
+  Future<void> _sendTextMessage(String content) async {
+    if (selectedConversation.value == null || content.isEmpty) return;
+    print('Sending text message: $content');
+    try {
+      _socketService.sendMessageWithParams(
+        selectedConversation.value!.id,
+        content,
+        userId,
+      );
+      // Не добавляем локально, ждем сокет
+    } catch (e) {
+      print('Error sending text message: $e');
       Get.snackbar(
         'Ошибка',
         'Не удалось отправить сообщение',
         snackPosition: SnackPosition.BOTTOM,
       );
-      // Consider restoring input?
-    } finally {
-      isSendingMessage.value = false;
-      // Request focus back?
-      // Future.delayed(Duration(milliseconds: 50), () => messageFocusNode.requestFocus());
     }
   }
-
-  // Helper to add message locally (if needed for optimism)
-  // void _addMessageLocally(Message message) {
-  //   messages.insert(0, message);
-  //   _scrollToBottom();
-  // }
 
   void handleIncomingMessage(dynamic data) {
     print('New message received via socket: $data');
@@ -557,11 +583,20 @@ class ChatsController extends GetxController {
       // Ensure count is not negative
       newUnreadCount = newUnreadCount < 0 ? 0 : newUnreadCount;
 
+      // Определяем текст для последнего сообщения
+      String lastMessageText;
+      if (message.files != null && message.files!.isNotEmpty) {
+        lastMessageText = '[Файл] ${message.files!.first.fileName}';
+        // Если есть и текст, и файл, показываем и текст
+        if (message.content.isNotEmpty) {
+          lastMessageText = '${message.content}\n$lastMessageText';
+        }
+      } else {
+        lastMessageText = message.content;
+      }
+
       final updatedConversation = currentConversation.copyWith(
-        lastMessage:
-            message.files != null && message.files!.isNotEmpty
-                ? '[Файл] ${message.files!.first.fileName}'
-                : message.content,
+        lastMessage: lastMessageText,
         lastMessageTime: DateTime.parse(message.created_at),
         unread_count: newUnreadCount,
       );
@@ -750,16 +785,27 @@ class ChatsController extends GetxController {
     }
   }
 
-  // Renamed from sendMessageWithFile for clarity
-  void selectFileToSend() async {
-    final fileService = Get.find<FileService>();
-    final result = await fileService.pickFile();
+  // Обновляем метод для выбора НЕСКОЛЬКИХ файлов
+  Future<void> selectFilesToSend() async {
+    final result =
+        await _fileService.pickFile(); // Используем обновленный pickFile
     if (result != null && result.files.isNotEmpty) {
-      selectedFile.value = File(result.files.first.path!);
-      // Automatically try to send if text is also present or just send file?
-      // For now, just select it. User presses send.
-      // Optionally trigger send if needed:
-      // sendMessage();
+      // Добавляем все выбранные файлы в список
+      filesToSend.addAll(
+        result.files.map((platformFile) => File(platformFile.path!)),
+      );
+      print(
+        'Selected ${result.files.length} files. Total to send: ${filesToSend.length}',
+      );
+    } else {
+      print('File picking cancelled or failed.');
+    }
+  }
+
+  // Новый метод для удаления файла из списка перед отправкой
+  void removeFileToSend(int index) {
+    if (index >= 0 && index < filesToSend.length) {
+      filesToSend.removeAt(index);
     }
   }
 
@@ -1244,4 +1290,207 @@ class ChatsController extends GetxController {
   }
 
   // --- End Socket Event Handlers ---
+
+  // --- Drag and Drop Handlers ---
+  void handleDragEntered() {
+    isDragOverChatDetail.value = true;
+  }
+
+  void handleDragExited() {
+    isDragOverChatDetail.value = false;
+  }
+
+  // Методы для drag-n-drop в диалоге
+  void handleDialogDragEntered() {
+    isDragOverDialog.value = true;
+  }
+
+  void handleDialogDragExited() {
+    isDragOverDialog.value = false;
+  }
+
+  Future<void> handleFileDrop(List<XFile> files) async {
+    // Игнорируем drop здесь, если открыт диалог отправки
+    if (isFileSendDialogOpen.value) {
+      print("Ignoring drop on ChatMessages because SendFileDialog is open.");
+      isDragOverChatDetail.value =
+          false; // Сбросить состояние перетаскивания в любом случае
+      return;
+    }
+
+    isDragOverChatDetail.value = false; // Сбрасываем индикатор основного окна
+    if (files.isNotEmpty) {
+      filesToSend.addAll(files.map((xFile) => File(xFile.path)));
+      showSendFileDialogFromController(); // Показываем диалог
+    }
+  }
+
+  // --- Dialog Logic ---
+  void showSendFileDialogFromController() {
+    if (filesToSend.isEmpty) return;
+    isFileSendDialogOpen.value = true; // <-- Устанавливаем флаг при открытии
+
+    final theme = Get.theme;
+    final colorScheme = theme.colorScheme;
+    final FocusNode dialogFocusNode = FocusNode();
+
+    Get.dialog(
+      // Оборачиваем в Obx для реактивности
+      Obx(() {
+        final isDragging = isDragOverDialog.value;
+        final currentFilesCount = filesToSend.length;
+        // Не даем отправить, если список стал пустым после удаления
+        final canSendFromDialog = currentFilesCount > 0;
+
+        return DropTarget(
+          onDragEntered: (_) => handleDialogDragEntered(),
+          onDragExited: (_) => handleDialogDragExited(),
+          onDragDone: (details) {
+            handleDialogDragExited(); // Сначала сбрасываем флаг
+            if (details.files.isNotEmpty) {
+              filesToSend.addAll(details.files.map((f) => File(f.path)));
+              // Фокус может потеряться после drag-n-drop, возвращаем его
+              dialogFocusNode.requestFocus();
+            }
+          },
+          child: RawKeyboardListener(
+            focusNode: dialogFocusNode,
+            autofocus: true,
+            onKey: (RawKeyEvent event) {
+              if (event is RawKeyDownEvent &&
+                  event.logicalKey == LogicalKeyboardKey.enter) {
+                if (canSendFromDialog) {
+                  // Проверяем возможность отправки
+                  sendCurrentInput();
+                  Get.back();
+                }
+              }
+            },
+            child: AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16.0),
+                // Добавляем рамку при перетаскивании
+                side:
+                    isDragging
+                        ? BorderSide(color: colorScheme.primary, width: 2)
+                        : BorderSide.none,
+              ),
+              title: Row(
+                children: [
+                  Icon(Icons.attach_file_rounded, color: colorScheme.primary),
+                  const SizedBox(width: 10),
+                  // Обновляем заголовок реактивно
+                  Expanded(
+                    child: Text('Отправить файлы ($currentFilesCount)?'),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: double.maxFinite,
+                height: Get.height * 0.3,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: currentFilesCount,
+                  itemBuilder: (context, index) {
+                    // Проверка на случай асинхронного изменения списка
+                    if (index >= filesToSend.length) return SizedBox.shrink();
+                    final file = filesToSend[index];
+                    final fileName =
+                        file.path.split(Platform.pathSeparator).last;
+                    return ListTile(
+                      dense: true,
+                      leading: Icon(Icons.insert_drive_file_outlined, size: 18),
+                      title: Text(fileName, overflow: TextOverflow.ellipsis),
+                      trailing: IconButton(
+                        icon: Icon(
+                          Icons.close_rounded,
+                          size: 16,
+                          color: Colors.redAccent,
+                        ),
+                        padding: EdgeInsets.zero,
+                        constraints: BoxConstraints(),
+                        tooltip: 'Убрать файл',
+                        onPressed: () {
+                          removeFileToSend(index);
+                          // Не закрываем диалог, если файлы еще остались
+                        },
+                      ),
+                    );
+                  },
+                ),
+              ),
+              actionsPadding: const EdgeInsets.only(
+                left: 8,
+                right: 16,
+                bottom: 8,
+                top: 0,
+              ),
+              actionsAlignment:
+                  MainAxisAlignment.spaceBetween, // Выравниваем кнопки
+              actions: <Widget>[
+                // Кнопка "Добавить еще"
+                IconButton(
+                  icon: Icon(Icons.add_circle_outline_rounded),
+                  tooltip: 'Добавить файл',
+                  color: colorScheme.primary,
+                  onPressed: () async {
+                    // Вызываем выбор файлов
+                    await selectFilesToSend();
+                    // Возвращаем фокус диалогу после выбора
+                    dialogFocusNode.requestFocus();
+                  },
+                ),
+                // Группа кнопок справа
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextButton(
+                      child: Text(
+                        'Отмена',
+                        style: TextStyle(color: colorScheme.onSurfaceVariant),
+                      ),
+                      onPressed: () {
+                        // Очистка filesToSend происходит в whenComplete
+                        Get.back();
+                      },
+                    ),
+                    SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      icon: Icon(Icons.send_rounded, size: 18),
+                      // Обновляем текст кнопки реактивно
+                      label: Text('Отправить ($currentFilesCount)'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: colorScheme.primary,
+                        foregroundColor: colorScheme.onPrimary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12.0),
+                        ),
+                      ),
+                      // Деактивируем кнопку, если нет файлов
+                      onPressed:
+                          canSendFromDialog
+                              ? () {
+                                sendCurrentInput();
+                                Get.back();
+                              }
+                              : null,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      }),
+      barrierDismissible: false,
+    ).whenComplete(() {
+      dialogFocusNode.dispose();
+      filesToSend.clear();
+      isDragOverDialog.value = false;
+      isFileSendDialogOpen.value = false; // <-- Сбрасываем флаг при закрытии
+      print('Send file dialog closed, filesToSend cleared.');
+    });
+  }
+
+  // --- End Dialog Logic ---
 }

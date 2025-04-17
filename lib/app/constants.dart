@@ -15,4 +15,5 @@ class AppKeys {
   static const String userId = 'userId';
 
   static const String isDarkMode = 'isDarkMode';
+  static const String sendMessageOnEnter = 'sendMessageOnEnter';
 }
