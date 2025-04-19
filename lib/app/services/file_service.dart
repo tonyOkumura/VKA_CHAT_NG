@@ -6,6 +6,8 @@ import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:vka_chat_ng/app/constants.dart';
 import 'package:vka_chat_ng/app/data/models/file_model.dart';
+import 'package:slugify/slugify.dart';
+import 'package:path/path.dart' as path;
 
 class FileService extends GetxService {
   final _storage = FlutterSecureStorage();
@@ -46,12 +48,29 @@ class FileService extends GetxService {
       }
       print('Token found');
 
-      // Проверяем, существует ли файл в папке загрузок
-      final existingFile = await findExistingFile(file.path.split('\\').last);
-      if (existingFile != null) {
-        print('Using existing file from downloads folder');
-        file = existingFile;
+      // --- Get original and slugified filename ---
+      String originalFileName = path.basename(
+        file.path,
+      ); // Get filename from path
+      List<String> parts = originalFileName.split('.');
+      String fileName = parts.sublist(0, parts.length - 1).join('.');
+      String safeFileName = slugify(fileName, lowercase: false, delimiter: '_');
+      // Ensure extension is preserved if slugify removes it
+      if (originalFileName.contains('.') && !safeFileName.contains('.')) {
+        final extension = originalFileName.substring(
+          originalFileName.lastIndexOf('.'),
+        );
+        safeFileName += extension;
       }
+      print(
+        '[FileService.upload] Original filename: $originalFileName -> Slugified: $safeFileName',
+      );
+      // ------------------------------------------
+
+      // Read file bytes
+      print('[FileService.upload] Reading file bytes for: ${file.path}');
+      List<int> fileBytes = await file.readAsBytes();
+      print('[FileService.upload] File bytes read: ${fileBytes.length}');
 
       print('Creating multipart request...');
       print('Upload URL: $_baseUrl/files/upload');
@@ -60,14 +79,20 @@ class FileService extends GetxService {
         Uri.parse('$_baseUrl/files/upload'),
       );
 
-      // Добавляем файл
-      print('Adding file to request...');
-      print('File path: ${file.path}');
-      print('File size: ${await file.length()} bytes');
-      request.files.add(await http.MultipartFile.fromPath('file', file.path));
+      // Create MultipartFile using fromBytes with the SLUGIFIED filename
+      print('Adding file to request with slugified name: $safeFileName');
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'file', // Field name expected by server
+          fileBytes,
+          filename: safeFileName, // Use the slugified filename
+          // You might need to specify contentType explicitly if server relies on it
+          // contentType: MediaType.parse(lookupMimeType(safeFileName) ?? 'application/octet-stream')
+        ),
+      );
       print('File added to request');
 
-      // Добавляем данные сообщения
+      // Add message data (unchanged)
       print('Adding message data to request...');
       request.fields['conversation_id'] = conversationId;
       request.fields['sender_id'] = senderId;
@@ -101,95 +126,155 @@ class FileService extends GetxService {
   }
 
   Future<FileModel?> getFileInfo(String fileId) async {
+    print('[FileService.getFileInfo] Getting file info for ID: $fileId');
     try {
       String token = await _storage.read(key: AppKeys.token) ?? '';
       if (token.isEmpty) {
-        print('No token found');
+        print('[FileService.getFileInfo] No token found');
         return null;
       }
 
-      final response = await http.get(
-        Uri.parse('$_baseUrl/files/info/$fileId'),
-        headers: {'Authorization': 'Bearer $token'},
+      final String url = '$_baseUrl/files/info'; // URL without fileId
+      final Map<String, String> headers = {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json', // Add Content-Type
+      };
+      final String body = jsonEncode({'file_id': fileId}); // Create JSON body
+
+      print('[FileService.getFileInfo] Requesting URL (POST): $url');
+      print('[FileService.getFileInfo] Request Headers: $headers');
+      print('[FileService.getFileInfo] Request Body: $body');
+
+      // Change to http.post
+      final response = await http.post(
+        Uri.parse(url),
+        headers: headers,
+        body: body,
+      );
+
+      print(
+        '[FileService.getFileInfo] Response Status Code: ${response.statusCode}',
       );
 
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(response.body);
+        print('[FileService.getFileInfo] File info received successfully.');
         return FileModel.fromJson(jsonData);
       } else {
-        print('Failed to get file info: ${response.statusCode}');
+        print(
+          '[FileService.getFileInfo] Failed to get file info. Status: ${response.statusCode}',
+        );
+        try {
+          print(
+            '[FileService.getFileInfo] Error Response Body: ${response.body}',
+          );
+        } catch (e) {
+          print(
+            '[FileService.getFileInfo] Could not decode error response body: $e',
+          );
+        }
         return null;
       }
-    } catch (e) {
-      print('Error getting file info: $e');
+    } catch (e, stackTrace) {
+      print('[FileService.getFileInfo] Error getting file info ID $fileId: $e');
+      print('[FileService.getFileInfo] StackTrace: $stackTrace');
       return null;
     }
   }
 
   Future<File?> downloadFile(String fileId) async {
+    print('[FileService.downloadFile] Attempting to download file ID: $fileId');
     try {
-      // Сначала получаем информацию о файле
+      print('[FileService.downloadFile] Getting file info for ID: $fileId');
       final fileInfo = await getFileInfo(fileId);
       if (fileInfo == null) {
-        print('Failed to get file info');
+        print(
+          '[FileService.downloadFile] Failed to get file info for ID: $fileId. Aborting download.',
+        );
         return null;
       }
+      print(
+        '[FileService.downloadFile] Got file info: Name=${fileInfo.fileName}, Size=${fileInfo.fileSize}',
+      );
 
-      // Получаем путь к папке Загрузки
       final downloadsPath = '${Platform.environment['USERPROFILE']}\\Downloads';
       final vkaChatPath = '$downloadsPath\\VKA_Chat';
-
-      // Создаем папку VKA_Chat, если она не существует
       final vkaChatDir = Directory(vkaChatPath);
       if (!await vkaChatDir.exists()) {
         await vkaChatDir.create(recursive: true);
-        print('Created VKA_Chat directory: $vkaChatPath');
-      }
-
-      // Если есть прямой URL для скачивания, используем его
-      if (fileInfo.downloadUrl != null) {
-        print('Using direct download URL: ${fileInfo.downloadUrl}');
-        final response = await http.get(
-          Uri.parse(fileInfo.downloadUrl!),
-          headers: {
-            'Authorization':
-                'Bearer ${await _storage.read(key: AppKeys.token) ?? ''}',
-          },
+        print(
+          '[FileService.downloadFile] Created VKA_Chat directory: $vkaChatPath',
         );
-
-        if (response.statusCode == 200) {
-          final file = File('$vkaChatPath\\${fileInfo.fileName}');
-          await file.writeAsBytes(response.bodyBytes);
-          print('File saved to: ${file.path}');
-          return file;
-        }
       }
 
-      // Если прямого URL нет, пробуем стандартный эндпоинт
-      print('Using standard download endpoint');
-      final response = await http.get(
-        Uri.parse('$_baseUrl/files/download/$fileId'),
-        headers: {
-          'Authorization':
-              'Bearer ${await _storage.read(key: AppKeys.token) ?? ''}',
-        },
+      final String token = await _storage.read(key: AppKeys.token) ?? '';
+      final Map<String, String> headers = {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      };
+      final String body = jsonEncode({'file_id': fileId});
+
+      final String downloadUrl = '$_baseUrl/files/download';
+
+      print('[FileService.downloadFile] Requesting URL (POST): $downloadUrl');
+      print('[FileService.downloadFile] Request Headers: $headers');
+      print('[FileService.downloadFile] Request Body: $body');
+
+      final response = await http.post(
+        Uri.parse(downloadUrl),
+        headers: headers,
+        body: body,
       );
 
-      print('Download response status: ${response.statusCode}');
-      print('Download response headers: ${response.headers}');
+      print(
+        '[FileService.downloadFile] Response Status Code: ${response.statusCode}',
+      );
 
       if (response.statusCode == 200) {
-        final file = File('$vkaChatPath\\${fileInfo.fileName}');
+        // --- Slugify the filename correctly before saving ---
+        String originalFileName = fileInfo.fileName;
+        String baseName = path.basenameWithoutExtension(originalFileName);
+        String extension = path.extension(
+          originalFileName,
+        ); // Includes the dot, e.g., '.pdf'
+
+        String slugifiedBaseName = slugify(
+          baseName,
+          lowercase: false,
+          delimiter: '_',
+        );
+
+        // Combine slugified base name with the original extension
+        String safeFileName = slugifiedBaseName + extension;
+
+        print(
+          '[FileService.downloadFile] Original: $originalFileName -> Base: $baseName, Ext: $extension -> Slugified: $safeFileName',
+        );
+        // -----------------------------------------------
+
+        // Use the safe filename for the path
+        final file = File('$vkaChatPath\\$safeFileName');
         await file.writeAsBytes(response.bodyBytes);
-        print('File saved to: ${file.path}');
+        print('[FileService.downloadFile] File saved to: ${file.path}');
         return file;
       } else {
-        print('Failed to download file: ${response.statusCode}');
-        print('Error response: ${response.body}');
+        print(
+          '[FileService.downloadFile] Failed to download file. Status: ${response.statusCode}',
+        );
+        try {
+          print(
+            '[FileService.downloadFile] Error Response Body: ${response.body}',
+          );
+        } catch (e) {
+          print(
+            '[FileService.downloadFile] Could not decode error response body: $e',
+          );
+        }
         return null;
       }
-    } catch (e) {
-      print('Error downloading file: $e');
+    } catch (e, stackTrace) {
+      print('[FileService.downloadFile] Error downloading file ID $fileId: $e');
+      print('[FileService.downloadFile] StackTrace: $stackTrace');
       return null;
     }
   }

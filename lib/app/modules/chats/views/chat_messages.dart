@@ -42,8 +42,12 @@ class _ChatMessagesState extends State<ChatMessages> {
 
   // Callback for when the messages list changes
   void _onMessagesChanged(List<Message> messages) {
+    print(
+      "[ChatMessages._onMessagesChanged] Listener triggered. New count: ${messages.length}, Prev count: $_previousMessageCount",
+    );
     // Check if a message was added (inserted at index 0)
     if (messages.length > _previousMessageCount) {
+      print("[ChatMessages._onMessagesChanged] Message added detected.");
       // Calculate how many items were added
       final itemsAdded = messages.length - _previousMessageCount;
       // Trigger insert animation for each added item
@@ -54,6 +58,7 @@ class _ChatMessagesState extends State<ChatMessages> {
           0, // Index in the reversed list
           duration: const Duration(milliseconds: 300),
         );
+        print("[ChatMessages._onMessagesChanged] insertItem(0) called.");
       }
     }
     // TODO: Handle removals if necessary (more complex)

@@ -455,15 +455,18 @@ class ChatsController extends GetxController {
         file: file,
         conversationId: selectedConversation.value!.id,
         senderId: userId,
-        content: content, // Передаем текст (пустой для последующих файлов)
+        content: content, // Pass the content (usually empty for files)
       );
-      if (result != null && result.containsKey('message')) {
-        print('File upload successful, server response: $result');
-        final message = Message.fromJson(result['message']);
-        _updateConversationLastMessage(message);
-        // Не добавляем сообщение локально, ждем сокет
+      // Check if the HTTP upload itself was successful
+      if (result != null && result.containsKey('messageId')) {
+        // Check for messageId or fileId as success indicator
+        print('File HTTP upload successful, server response: $result');
+        // We rely solely on the WebSocket 'newMessage' event to update the UI
       } else {
-        print('Failed to upload file: ${file.path}');
+        // Handle potential HTTP upload failure reported by the server
+        print(
+          'Failed to upload file (server reported issue): ${file.path}, Response: $result',
+        );
         Get.snackbar(
           'Ошибка файла',
           'Не удалось отправить файл: ${file.path.split(Platform.pathSeparator).last}',
@@ -471,7 +474,10 @@ class ChatsController extends GetxController {
         );
       }
     } catch (e) {
-      print('Error uploading file ${file.path}: $e');
+      // Handle network or other errors during the HTTP request
+      print(
+        'Error uploading file ${file.path}: $e',
+      ); // This log will now only show actual HTTP errors
       Get.snackbar(
         'Ошибка файла',
         'Ошибка при отправке файла: ${file.path.split(Platform.pathSeparator).last}',
@@ -501,9 +507,16 @@ class ChatsController extends GetxController {
   }
 
   void handleIncomingMessage(dynamic data) {
-    print('New message received via socket: $data');
+    print('[ChatsController.handleIncomingMessage] Processing data...');
     try {
+      // Add this log to check the received type
+      print(
+        "[ChatsController.handleIncomingMessage] Received data type: ${data.runtimeType}",
+      );
       final message = Message.fromJson(data);
+      print(
+        "[ChatsController.handleIncomingMessage] Parsed message: ID=${message.id}, Files=${message.files?.length ?? 0}",
+      );
 
       // Mark as unread if not from self
       final updatedMessage = message.copyWith(
@@ -512,8 +525,14 @@ class ChatsController extends GetxController {
 
       if (selectedConversation.value != null &&
           message.conversation_id == selectedConversation.value!.id) {
+        print(
+          "[ChatsController.handleIncomingMessage] Chat is open. Inserting message...",
+        );
         // If chat is open, add message and mark as read
         messages.insert(0, updatedMessage);
+        print(
+          "[ChatsController.handleIncomingMessage] Message inserted. List length: ${messages.length}",
+        );
         _filterChatMessages(); // Filter when a new message is added locally
         _scrollToBottom();
         // Mark as read immediately if chat is open
@@ -549,8 +568,11 @@ class ChatsController extends GetxController {
       // Always update conversation list regardless of chat open status
       _updateConversationLastMessage(updatedMessage);
     } catch (e) {
-      print("Error processing incoming message: $e");
-      print("Data: $data");
+      print("[ChatsController.handleIncomingMessage] Error processing: $e");
+      // Print the actual data that caused the error
+      print(
+        "[ChatsController.handleIncomingMessage] Data causing error: $data",
+      );
     }
   }
 
@@ -811,13 +833,30 @@ class ChatsController extends GetxController {
 
   // Added method for downloading file - needed by ChatFileAttachment
   Future<bool> downloadFile(file_model.FileModel file) async {
-    if (downloadingFiles.contains(file.id)) return false; // Already downloading
+    // Log the file details being requested
+    print(
+      "[ChatsController.downloadFile] Attempting to download file: ID=${file.id}, Name=${file.fileName}",
+    );
+
+    if (downloadingFiles.contains(file.id)) {
+      print(
+        "[ChatsController.downloadFile] Already downloading file ID: ${file.id}",
+      );
+      return false; // Already downloading
+    }
 
     downloadingFiles.add(file.id);
     final fileService = Get.find<FileService>();
     try {
+      // Log before calling the service
+      print(
+        "[ChatsController.downloadFile] Calling fileService.downloadFile with ID: ${file.id}",
+      );
       final downloaded = await fileService.downloadFile(file.id);
       if (downloaded != null) {
+        print(
+          "[ChatsController.downloadFile] Download successful for ID: ${file.id}",
+        );
         downloadedFiles.add(file.id); // Mark as downloaded locally
         Get.snackbar(
           'Успешно',
@@ -826,15 +865,22 @@ class ChatsController extends GetxController {
         );
         return true;
       } else {
+        // This block might be reached if FileService returns null on failure
+        print(
+          "[ChatsController.downloadFile] fileService.downloadFile returned null for ID: ${file.id}",
+        );
         Get.snackbar(
           'Ошибка',
-          'Не удалось загрузить файл "${file.fileName}"',
+          'Не удалось загрузить файл "${file.fileName}" (сервис вернул null)',
           snackPosition: SnackPosition.BOTTOM,
         );
         return false;
       }
     } catch (e) {
-      print("Error downloading file ${file.id}: $e");
+      // Catch errors specifically from the downloadFile call or subsequent processing
+      print(
+        "[ChatsController.downloadFile] Error downloading file ID ${file.id}: $e",
+      );
       Get.snackbar(
         'Ошибка',
         'Произошла ошибка при загрузке файла',
@@ -843,6 +889,9 @@ class ChatsController extends GetxController {
       return false;
     } finally {
       downloadingFiles.remove(file.id);
+      print(
+        "[ChatsController.downloadFile] Finished download attempt for ID: ${file.id}",
+      );
     }
   }
 

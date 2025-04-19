@@ -7,13 +7,15 @@ import 'package:vka_chat_ng/app/data/models/log_entry_model.dart';
 import 'package:vka_chat_ng/app/data/models/file_model.dart';
 import 'package:vka_chat_ng/app/services/file_service.dart';
 import 'dart:io';
+import 'package:vka_chat_ng/app/services/socket_service.dart';
 
 class TaskDetailsController extends GetxController {
   final TaskApiService _apiService = Get.find<TaskApiService>();
   final FileService _fileService = Get.find<FileService>();
+  final SocketService _socketService = Get.find<SocketService>();
 
-  // ID задачи, полученный из аргументов
-  late final String taskId;
+  // ID задачи, полученный из аргументов (делаем nullable)
+  String? taskId;
 
   // Состояние
   final Rxn<TaskModel> task = Rxn<TaskModel>(); // Nullable TaskModel
@@ -53,13 +55,14 @@ class TaskDetailsController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    // Получаем ID задачи из аргументов навигации
     if (Get.arguments != null && Get.arguments is String) {
       taskId = Get.arguments as String;
+      // Используем taskId! где он точно не null
       fetchTaskDetails();
       fetchComments();
       fetchLogs();
       fetchAttachments();
+      _socketService.joinTaskRoom(taskId!);
 
       commentInputController.addListener(() {
         commentText.value = commentInputController.text;
@@ -77,21 +80,28 @@ class TaskDetailsController extends GetxController {
   @override
   void onClose() {
     commentInputController.dispose();
+    // Проверяем taskId на null
+    if (taskId != null) {
+      _socketService.leaveTaskRoom(taskId!);
+    }
     super.onClose();
   }
 
   // Загрузка деталей задачи
   Future<void> fetchTaskDetails() async {
+    if (taskId == null) return; // Доп. проверка
     isLoading.value = true;
     errorMessage.value = null;
     try {
-      final taskDetails = await _apiService.getTaskById(taskId);
+      final taskDetails = await _apiService.getTaskById(
+        taskId!,
+      ); // Используем taskId!
       task.value = taskDetails;
     } catch (e) {
       print("Error fetching task details for $taskId: $e");
       errorMessage.value =
           "Не удалось загрузить детали задачи: ${e.toString()}";
-      task.value = null; // Очищаем задачу в случае ошибки
+      task.value = null;
     } finally {
       isLoading.value = false;
     }
@@ -99,10 +109,13 @@ class TaskDetailsController extends GetxController {
 
   // --- НОВЫЕ МЕТОДЫ: Загрузка и отправка комментариев ---
   Future<void> fetchComments() async {
+    if (taskId == null) return;
     isLoadingComments.value = true;
     commentsErrorMessage.value = null;
     try {
-      final fetchedComments = await _apiService.getComments(taskId);
+      final fetchedComments = await _apiService.getComments(
+        taskId!,
+      ); // Используем taskId!
       comments.assignAll(fetchedComments);
     } catch (e) {
       print("Error fetching comments for task $taskId: $e");
@@ -114,6 +127,7 @@ class TaskDetailsController extends GetxController {
   }
 
   Future<void> submitComment() async {
+    if (taskId == null) return;
     final currentCommentText = commentText.value.trim();
     if (currentCommentText.isEmpty) return;
 
@@ -122,10 +136,9 @@ class TaskDetailsController extends GetxController {
 
     try {
       final newComment = await _apiService.addComment(
-        taskId,
+        taskId!, // Используем taskId!
         currentCommentText,
       );
-      comments.insert(0, newComment);
       commentInputController.clear();
     } catch (e) {
       print("Error submitting comment for task $taskId: $e");
@@ -144,11 +157,13 @@ class TaskDetailsController extends GetxController {
 
   // --- НОВОЕ: Метод для загрузки логов ---
   Future<void> fetchLogs() async {
+    if (taskId == null) return;
     isLoadingLogs.value = true;
     logsErrorMessage.value = null;
     try {
-      final fetchedLogs = await _apiService.getLogs(taskId);
-      // API возвращает в порядке убывания, сохраняем так же
+      final fetchedLogs = await _apiService.getLogs(
+        taskId!,
+      ); // Используем taskId!
       logs.assignAll(fetchedLogs);
     } catch (e) {
       print("Error fetching logs for task $taskId: $e");
@@ -162,10 +177,13 @@ class TaskDetailsController extends GetxController {
   // --- НОВЫЕ МЕТОДЫ: Работа с вложениями ---
 
   Future<void> fetchAttachments() async {
+    if (taskId == null) return;
     isLoadingAttachments.value = true;
     attachmentsErrorMessage.value = null;
     try {
-      final fetchedAttachments = await _apiService.getAttachments(taskId);
+      final fetchedAttachments = await _apiService.getAttachments(
+        taskId!,
+      ); // Используем taskId!
       attachments.assignAll(fetchedAttachments);
     } catch (e) {
       print("Error fetching attachments for task $taskId: $e");
@@ -177,14 +195,17 @@ class TaskDetailsController extends GetxController {
   }
 
   Future<void> pickAndUploadAttachment() async {
+    if (taskId == null) return;
     final pickedResult = await _fileService.pickFile();
     if (pickedResult != null && pickedResult.files.single.path != null) {
       final file = File(pickedResult.files.single.path!);
       isUploadingAttachment.value = true;
-      attachmentsErrorMessage.value = null; // Сбрасываем предыдущую ошибку
+      attachmentsErrorMessage.value = null;
       try {
-        final newAttachment = await _apiService.addAttachment(taskId, file);
-        attachments.add(newAttachment); // Добавляем в конец списка
+        final newAttachment = await _apiService.addAttachment(
+          taskId!,
+          file,
+        ); // Используем taskId!
         Get.snackbar(
           'Успех',
           'Файл "${newAttachment.fileName}" успешно загружен.',
@@ -241,6 +262,7 @@ class TaskDetailsController extends GetxController {
   }
 
   Future<void> deleteAttachment(String attachmentId, String fileName) async {
+    if (taskId == null) return;
     Get.dialog(
       AlertDialog(
         title: const Text('Удалить вложение?'),
@@ -250,23 +272,24 @@ class TaskDetailsController extends GetxController {
           TextButton(
             child: const Text('Удалить', style: TextStyle(color: Colors.red)),
             onPressed: () async {
-              Get.back(); // Закрыть диалог
-              // Показываем индикатор, пока удаляется
+              Get.back();
               Get.dialog(
                 Center(child: CircularProgressIndicator()),
                 barrierDismissible: false,
               );
               try {
-                await _apiService.deleteAttachment(taskId, attachmentId);
-                attachments.removeWhere((att) => att.id == attachmentId);
-                Get.back(); // Закрыть индикатор
+                await _apiService.deleteAttachment(
+                  taskId!,
+                  attachmentId,
+                ); // Используем taskId!
+                Get.back();
                 Get.snackbar(
                   'Успех',
                   'Вложение "$fileName" удалено.',
                   snackPosition: SnackPosition.BOTTOM,
                 );
               } catch (e) {
-                Get.back(); // Закрыть индикатор
+                Get.back();
                 print("Error deleting attachment $attachmentId: $e");
                 Get.snackbar(
                   'Ошибка',
@@ -288,5 +311,85 @@ class TaskDetailsController extends GetxController {
     final hash = userId.hashCode;
     final hue = (hash % 360).abs();
     return HSLColor.fromAHSL(1, hue.toDouble(), 0.7, 0.5).toColor();
+  }
+
+  void handleTaskUpdated(dynamic data) {
+    print("[WebSocket TaskDetails] Received taskUpdated: $data");
+    try {
+      final updatedTaskId = data['id'] as String?;
+      if (updatedTaskId == taskId) {
+        final updatedTask = TaskModel.fromJson(data as Map<String, dynamic>);
+        task.value = updatedTask;
+        print("  Task details updated via WebSocket.");
+      }
+    } catch (e) {
+      print("Error processing taskUpdated event in TaskDetails: $e");
+    }
+  }
+
+  void handleNewTaskComment(dynamic data) {
+    print("[WebSocket TaskDetails] Received newTaskComment: $data");
+    try {
+      final commentTaskId = data['task_id'] as String?;
+      if (commentTaskId == taskId) {
+        final newComment = CommentModel.fromJson(data as Map<String, dynamic>);
+        // Добавляем комментарий, если его еще нет
+        if (!comments.any((c) => c.id == newComment.id)) {
+          comments.insert(0, newComment);
+          print("  New comment added via WebSocket.");
+        }
+      }
+    } catch (e) {
+      print("Error processing newTaskComment event in TaskDetails: $e");
+    }
+  }
+
+  void handleNewTaskAttachment(dynamic data) {
+    print("[WebSocket TaskDetails] Received newTaskAttachment: $data");
+    try {
+      final attachmentTaskId = data['task_id'] as String?;
+      if (attachmentTaskId == taskId) {
+        final newAttachment = FileModel.fromJson(data as Map<String, dynamic>);
+        // Добавляем вложение, если его еще нет
+        if (!attachments.any((a) => a.id == newAttachment.id)) {
+          attachments.add(newAttachment);
+          print("  New attachment added via WebSocket.");
+        }
+      }
+    } catch (e) {
+      print("Error processing newTaskAttachment event in TaskDetails: $e");
+    }
+  }
+
+  void handleTaskAttachmentDeleted(dynamic data) {
+    print("[WebSocket TaskDetails] Received taskAttachmentDeleted: $data");
+    try {
+      final eventTaskId = data['taskId'] as String?;
+      final attachmentId = data['attachmentId'] as String?;
+      if (eventTaskId == taskId && attachmentId != null) {
+        // Просто удаляем, без проверки возвращаемого значения
+        attachments.removeWhere((att) => att.id == attachmentId);
+        print("  Attachment $attachmentId removed via WebSocket (if existed).");
+      }
+    } catch (e) {
+      print("Error processing taskAttachmentDeleted event in TaskDetails: $e");
+    }
+  }
+
+  void handleNewLogEntry(dynamic data) {
+    print("[WebSocket TaskDetails] Received newLogEntry: $data");
+    try {
+      final logTaskId = data['task_id'] as String?;
+      if (logTaskId == taskId) {
+        final newLog = LogEntryModel.fromJson(data as Map<String, dynamic>);
+        // Используем logId для проверки уникальности
+        if (!logs.any((l) => l.logId == newLog.logId)) {
+          logs.insert(0, newLog); // Вставляем в начало
+          print("  New log entry added via WebSocket.");
+        }
+      }
+    } catch (e) {
+      print("Error processing newLogEntry event in TaskDetails: $e");
+    }
   }
 }

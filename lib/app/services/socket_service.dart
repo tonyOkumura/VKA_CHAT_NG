@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get/get.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
@@ -5,6 +6,9 @@ import 'package:vka_chat_ng/app/constants.dart';
 import 'package:vka_chat_ng/app/services/notification_service.dart';
 import 'package:vka_chat_ng/app/data/models/message_model.dart';
 import 'package:vka_chat_ng/app/modules/chats/controllers/chats_controller.dart';
+import 'package:vka_chat_ng/app/modules/tasks/controllers/tasks_controller.dart';
+import 'package:vka_chat_ng/app/modules/tasks/controllers/task_details_controller.dart';
+import 'package:vka_chat_ng/app/modules/contacts/controllers/contacts_controller.dart';
 
 class SocketService extends GetxService {
   late IO.Socket socket;
@@ -47,6 +51,16 @@ class SocketService extends GetxService {
     socket.on('messageRead', _handleMessageRead);
     socket.on('authenticate', _handleAuthentication);
     socket.on('userStatusChanged', _handleUserStatusChanged);
+    socket.on('newTaskCreated', _handleNewTaskCreated);
+    socket.on('taskUpdated', _handleTaskUpdated);
+    socket.on('taskDeleted', _handleTaskDeleted);
+    socket.on('newTaskComment', _handleNewTaskComment);
+    socket.on('newTaskAttachment', _handleNewTaskAttachment);
+    socket.on('taskAttachmentDeleted', _handleTaskAttachmentDeleted);
+    socket.on('newLogEntry', _handleNewLogEntry);
+    socket.on('newContactAdded', _handleNewContactAdded);
+    socket.on('contactUpdated', _handleContactUpdated);
+    socket.on('contactRemoved', _handleContactRemoved);
 
     socket.onDisconnect((_) {
       print('Socket disconnected');
@@ -71,21 +85,46 @@ class SocketService extends GetxService {
       return;
     }
 
-    // Обновляем заголовки авторизации
     if (socket.io.options != null) {
       socket.io.options!['extraHeaders'] = {'Authorization': 'Bearer $token'};
     }
 
-    // Переподключаемся
     await socket.connect();
     print('Socket reconnected with new token');
   }
 
   void joinConversation(String conversationId) {
+    if (!isInitialized) return;
     socket.emit('joinConversation', conversationId);
+    print('Joined conversation room: $conversationId');
+  }
+
+  void leaveConversation(String conversationId) {
+    if (!isInitialized) return;
+    socket.emit('leaveConversation', conversationId);
+    print('Left conversation room: $conversationId');
+  }
+
+  void joinTasksRoom() {
+    if (!isInitialized) return;
+    socket.emit('joinGeneralTasks');
+    print('Joined general tasks room');
+  }
+
+  void joinTaskRoom(String taskId) {
+    if (!isInitialized) return;
+    socket.emit('joinTaskDetails', taskId);
+    print('Joined task details room: $taskId');
+  }
+
+  void leaveTaskRoom(String taskId) {
+    if (!isInitialized) return;
+    socket.emit('leaveTaskDetails', taskId);
+    print('Left task details room: $taskId');
   }
 
   void sendMessage(Map<String, dynamic> message) {
+    if (!isInitialized) return;
     socket.emit('sendMessage', message);
   }
 
@@ -94,6 +133,7 @@ class SocketService extends GetxService {
     String content,
     String senderId,
   ) {
+    if (!isInitialized) return;
     socket.emit('sendMessage', {
       'conversation_id': conversationId,
       'content': content,
@@ -102,29 +142,45 @@ class SocketService extends GetxService {
   }
 
   void _handleMessage(dynamic data) {
+    print(
+      "[SocketService._handleMessage] Raw data received (type: ${data.runtimeType}): $data",
+    );
     try {
       if (data == null) {
-        print('Received null message data');
+        print('[SocketService._handleMessage] Received null message data');
         return;
       }
 
-      final message = Message.fromJson(data);
+      Map<String, dynamic> messageData;
+      if (data is String) {
+        print(
+          '[SocketService._handleMessage] Data is String, decoding JSON...',
+        );
+        messageData = jsonDecode(data);
+      } else if (data is Map) {
+        print('[SocketService._handleMessage] Data is Map, casting...');
+        messageData = Map<String, dynamic>.from(data);
+      } else {
+        print(
+          '[SocketService._handleMessage] Received data of unexpected type: ${data.runtimeType}',
+        );
+        return;
+      }
+
+      final message = Message.fromJson(messageData);
       final chatsController =
           Get.isRegistered<ChatsController>()
               ? Get.find<ChatsController>()
               : null;
 
-      // Проверяем, открыт ли чат с этим сообщением
       bool isChatOpen = false;
       if (chatsController != null) {
         isChatOpen = chatsController.isChatOpen(message.conversation_id);
       }
 
-      // Если чат не открыт, показываем уведомление
       if (!isChatOpen) {
         String notificationTitle = message.sender_username;
 
-        // Пытаемся получить название беседы для групповых чатов
         if (chatsController != null) {
           try {
             final conversation = chatsController.conversations.firstWhere(
@@ -147,13 +203,13 @@ class SocketService extends GetxService {
         );
       }
 
-      // Обновляем UI через контроллер, если он доступен
       if (chatsController != null) {
-        chatsController.handleIncomingMessage(data);
+        chatsController.handleIncomingMessage(messageData);
       }
     } catch (e, stackTrace) {
-      print('Error handling message: $e');
+      print('[SocketService._handleMessage] Error handling message: $e');
       print('Stack trace: $stackTrace');
+      print('[SocketService._handleMessage] Original raw data on error: $data');
     }
   }
 
@@ -175,9 +231,74 @@ class SocketService extends GetxService {
     }
   }
 
+  void _handleNewTaskCreated(dynamic data) {
+    if (Get.isRegistered<TasksController>()) {
+      Get.find<TasksController>().handleNewTaskCreated(data);
+    }
+  }
+
+  void _handleTaskUpdated(dynamic data) {
+    if (Get.isRegistered<TasksController>()) {
+      Get.find<TasksController>().handleTaskUpdated(data);
+    }
+    if (Get.isRegistered<TaskDetailsController>()) {
+      Get.find<TaskDetailsController>().handleTaskUpdated(data);
+    }
+  }
+
+  void _handleTaskDeleted(dynamic data) {
+    if (Get.isRegistered<TasksController>()) {
+      Get.find<TasksController>().handleTaskDeleted(data);
+    }
+  }
+
+  void _handleNewTaskComment(dynamic data) {
+    if (Get.isRegistered<TaskDetailsController>()) {
+      Get.find<TaskDetailsController>().handleNewTaskComment(data);
+    }
+  }
+
+  void _handleNewTaskAttachment(dynamic data) {
+    if (Get.isRegistered<TaskDetailsController>()) {
+      Get.find<TaskDetailsController>().handleNewTaskAttachment(data);
+    }
+  }
+
+  void _handleTaskAttachmentDeleted(dynamic data) {
+    if (Get.isRegistered<TaskDetailsController>()) {
+      Get.find<TaskDetailsController>().handleTaskAttachmentDeleted(data);
+    }
+  }
+
+  void _handleNewLogEntry(dynamic data) {
+    if (Get.isRegistered<TaskDetailsController>()) {
+      Get.find<TaskDetailsController>().handleNewLogEntry(data);
+    }
+  }
+
+  void _handleNewContactAdded(dynamic data) {
+    if (Get.isRegistered<ContactsController>()) {
+      Get.find<ContactsController>().handleNewContactAdded(data);
+    }
+  }
+
+  void _handleContactUpdated(dynamic data) {
+    if (Get.isRegistered<ContactsController>()) {
+      Get.find<ContactsController>().handleContactUpdated(data);
+    }
+  }
+
+  void _handleContactRemoved(dynamic data) {
+    if (Get.isRegistered<ContactsController>()) {
+      Get.find<ContactsController>().handleContactRemoved(data);
+    }
+  }
+
   @override
   void onClose() {
-    socket.disconnect();
+    if (isInitialized) {
+      socket.disconnect();
+    }
     isInitialized = false;
     super.onClose();
   }

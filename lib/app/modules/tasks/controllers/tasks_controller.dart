@@ -10,6 +10,7 @@ import 'package:vka_chat_ng/app/modules/contacts/controllers/contacts_controller
 import 'package:vka_chat_ng/app/modules/tasks/widgets/single_assignee_selection_dialog.dart';
 import 'package:dio/dio.dart'; // <-- Импорт для DioError
 import 'dart:collection'; // Для LinkedHashMap
+import 'package:vka_chat_ng/app/services/socket_service.dart';
 
 // --- НОВОЕ: Enum для полей сортировки ---
 enum TaskSortField {
@@ -31,6 +32,9 @@ class TasksController extends GetxController {
   late final ContactsController _contactsController;
   final _storage = const FlutterSecureStorage(); // <-- Экземпляр Secure Storage
   late String currentUserId; // <-- ID текущего пользователя
+  // --- НОВОЕ: Добавляем SocketService ---
+  late final SocketService _socketService;
+  // -----------------------------------
 
   // --- Основное состояние ---
   final RxList<TaskModel> taskList =
@@ -134,6 +138,9 @@ class TasksController extends GetxController {
     print("TasksController[${this.hashCode}]: onInit START");
     // ----------------------------------
     super.onInit();
+    // --- НОВОЕ: Инициализируем SocketService ---
+    _socketService = Get.find<SocketService>();
+    // ------------------------------------------
     currentUserId = await _storage.read(key: AppKeys.userId) ?? '';
     if (currentUserId.isEmpty) {
       print("CRITICAL: Could not get current user ID in TasksController.");
@@ -155,7 +162,9 @@ class TasksController extends GetxController {
     fetchTasks(); // Загружаем задачи
     // --- ОТЛАДКА: Логирование Init ---
     print("TasksController[${this.hashCode}]: onInit END");
-    // ----------------------------------
+    // --- НОВОЕ: Присоединяемся к комнате задач ---
+    _socketService.joinTasksRoom();
+    // --------------------------------------------
   }
 
   // --- НОВОЕ: Метод для инициализации ContactsController ---
@@ -783,6 +792,60 @@ class TasksController extends GetxController {
             ?.username ??
         'ID: $userId'; // Возвращаем ID, если не найден
   }
+
+  // --- НОВЫЕ: Обработчики WebSocket событий --- (
+  void handleNewTaskCreated(dynamic data) {
+    print("[WebSocket] Received newTaskCreated: $data");
+    try {
+      final newTask = TaskModel.fromJson(data as Map<String, dynamic>);
+      // Проверяем, нет ли уже такой задачи (на случай дублирования)
+      if (!taskList.any((t) => t.id == newTask.id)) {
+        taskList.add(newTask);
+        _applyFiltersAndSort();
+      }
+    } catch (e) {
+      print("Error processing newTaskCreated event: $e");
+    }
+  }
+
+  void handleTaskUpdated(dynamic data) {
+    print("[WebSocket] Received taskUpdated: $data");
+    try {
+      final updatedTask = TaskModel.fromJson(data as Map<String, dynamic>);
+      final index = taskList.indexWhere((t) => t.id == updatedTask.id);
+      if (index != -1) {
+        taskList[index] = updatedTask;
+        _applyFiltersAndSort();
+      } else {
+        // Если задачи нет в списке, возможно, она только что появилась
+        // из-за фильтров или была создана другим пользователем.
+        // Можно просто добавить ее.
+        taskList.add(updatedTask);
+        _applyFiltersAndSort();
+        print("  Task ${updatedTask.id} not found, added instead.");
+      }
+    } catch (e) {
+      print("Error processing taskUpdated event: $e");
+    }
+  }
+
+  void handleTaskDeleted(dynamic data) {
+    print("[WebSocket] Received taskDeleted: $data");
+    try {
+      final taskId = data['taskId'] as String?;
+      if (taskId != null) {
+        // Проверяем, была ли задача в списке *до* удаления
+        final taskExists = taskList.any((task) => task.id == taskId);
+        if (taskExists) {
+          taskList.removeWhere((task) => task.id == taskId);
+          _applyFiltersAndSort(); // Обновляем только если что-то удалили
+        }
+      }
+    } catch (e) {
+      print("Error processing taskDeleted event: $e");
+    }
+  }
+  // --- КОНЕЦ Обработчики WebSocket событий --- (
 
   @override
   void onClose() {

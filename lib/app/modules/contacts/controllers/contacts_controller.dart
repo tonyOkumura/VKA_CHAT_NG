@@ -63,10 +63,12 @@ class ContactsController extends GetxController {
   ];
 
   late String currentUserId;
+  late final SocketService _socketService;
 
   @override
   void onInit() async {
     super.onInit();
+    _socketService = Get.find<SocketService>();
     await _getCurrentUserId();
     await fetchContacts();
     print('ContactsController initialized.');
@@ -100,7 +102,7 @@ class ContactsController extends GetxController {
       headers: {'Authorization': 'Bearer $token'},
     );
     if (response.statusCode == 200) {
-      List data = jsonDecode(response.body);
+      List data = jsonDecode(utf8.decode(response.bodyBytes));
       contacts.value = data.map((e) => Contact.fromJson(e)).toList();
       for (var contact in contacts) {
         _ensureUserColor(contact.id);
@@ -174,6 +176,7 @@ class ContactsController extends GetxController {
   }
 
   void filterContacts(String query) {
+    searchQuery.value = query;
     if (query.isEmpty) {
       filteredContacts.value = contacts;
       return;
@@ -222,7 +225,7 @@ class ContactsController extends GetxController {
       selectedContacts.clear();
       isSelectionMode.value = false;
       groupNameController.clear();
-      await fetchContacts();
+      groupNameError.value = null;
     } else {
       Get.snackbar(
         'Ошибка',
@@ -340,6 +343,53 @@ class ContactsController extends GetxController {
       final hash = userId.hashCode;
       final hue = (hash % 360).abs();
       return HSLColor.fromAHSL(1, hue.toDouble(), 0.7, 0.5).toColor();
+    }
+  }
+
+  void handleNewContactAdded(dynamic data) {
+    print("[WebSocket Contacts] Received newContactAdded: $data");
+    try {
+      final newContact = Contact.fromJson(data as Map<String, dynamic>);
+      if (!contacts.any((c) => c.id == newContact.id)) {
+        _ensureUserColor(newContact.id);
+        contacts.add(newContact);
+        filterContacts(searchQuery.value);
+        print("  New contact ${newContact.username} added via WebSocket.");
+      }
+    } catch (e) {
+      print("Error processing newContactAdded event: $e");
+    }
+  }
+
+  void handleContactUpdated(dynamic data) {
+    print("[WebSocket Contacts] Received contactUpdated: $data");
+    try {
+      final updatedContact = Contact.fromJson(data as Map<String, dynamic>);
+      final index = contacts.indexWhere((c) => c.id == updatedContact.id);
+      if (index != -1) {
+        contacts[index] = updatedContact;
+        filterContacts(searchQuery.value);
+        print("  Contact ${updatedContact.username} updated via WebSocket.");
+      }
+    } catch (e) {
+      print("Error processing contactUpdated event: $e");
+    }
+  }
+
+  void handleContactRemoved(dynamic data) {
+    print("[WebSocket Contacts] Received contactRemoved: $data");
+    try {
+      final contactId = data['contactId'] as String?;
+      if (contactId != null) {
+        final contactExists = contacts.any((c) => c.id == contactId);
+        if (contactExists) {
+          contacts.removeWhere((c) => c.id == contactId);
+          filterContacts(searchQuery.value);
+          print("  Contact $contactId removed via WebSocket.");
+        }
+      }
+    } catch (e) {
+      print("Error processing contactRemoved event: $e");
     }
   }
 }

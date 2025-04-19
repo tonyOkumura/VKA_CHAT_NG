@@ -13,7 +13,7 @@ class Contact {
 
   factory Contact.fromJson(Map<String, dynamic> json) {
     return Contact(
-      id: json['contact_id'],
+      id: json['id'],
       username: json['username'],
       email: json['email'],
       isOnline: json['is_online'] ?? false,
